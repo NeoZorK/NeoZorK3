@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
     if (!parse_arguments(args, connection_type, endpoint)) {
         std::cerr << "Usage: " << (args.empty() ? "neozork3_cli" : args[0]) << " <flag> <endpoint>" << std::endl;
         std::cerr << "Flags:" << std::endl;
-        std::cerr << "  --http   <url>     Use HTTP connection (e.g., http://host:port)" << std::endl;
+        std::cerr << "  --http   <url>     Use HTTP connection (e.g., http://fantom.publicnode.com)" << std::endl;
         std::cerr << "  --https  <url>     Use HTTPS connection (e.g., https://host:port)" << std::endl;
         std::cerr << "  --ws     <url>     Use WebSocket connection (e.g., ws://host:port) [Not fully supported]" << std::endl;
         std::cerr << "  --wss    <url>     Use Secure WebSocket connection (e.g., wss://host:port)" << std::endl;
