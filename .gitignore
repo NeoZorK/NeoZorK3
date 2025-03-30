@@ -1,0 +1,69 @@
+# --- CMake / Build System ---
+/[Bb]uild*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+*.ninja
+compile_commands.json
+
+# --- Output Binaries ---
+# Игнорировать все содержимое внутри подпапок bin/
+# Если вы хотите отслеживать сами папки (linux, macos...), но не их содержимое
+bin/*/
+
+# Игнорировать исполняемый файл, если он случайно окажется не в bin/
+neozork3_cli
+*.exe
+*.out
+
+# --- Compiled Object Files ---
+*.o
+*.obj
+*.lo
+*.la
+
+# --- Libraries / Archives ---
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# --- IDE / Editor Specific ---
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+# VSCode
+.vscode/
+# CLion
+.idea/
+# QtCreator
+*.pro.user*
+*.creator.user*
+# KDevelop
+*.kdev4/
+*.kdev*
+
+# --- OS Specific ---
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+# Linux
+*~
+# KDE
+.directory
+
+# --- Log Files ---
+*.log
+
+# --- Other ---
+# Например, если у вас будут файлы конфигурации с секретами
+# credentials.json
+# config.local.yaml
