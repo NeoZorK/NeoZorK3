@@ -46,19 +46,19 @@ FetchContent_MakeAvailable(nlohmann_json)
 # Utilities Module (example)
 # Now includes at least one source file
 add_library(neozork3_utils STATIC
-    src/logger.cpp # Uncommented: Provide at least one source
+    src/logger.cpp # Provide at least one source
     # src/string_utils.cpp # Keep others commented until implemented
     # ... other utility .cpp files
 )
 # All modules can see header files from include/
-target_include_directories(neozork3_utils PUBLIC ../include) # Path relative to this CMakeLists.txt
+target_include_directories(neozork3_utils PUBLIC include) # Corrected path
 
 # Config Manager Module
 add_library(neozork3_config_manager STATIC
-    src/config_manager.cpp # Uncommented: Provide at least one source
+    src/config_manager.cpp # Provide at least one source
     # ...
 )
-target_include_directories(neozork3_config_manager PUBLIC ../include)
+target_include_directories(neozork3_config_manager PUBLIC include) # Corrected path
 # Dependencies: nlohmann_json for parsing, utils for helper functions
 target_link_libraries(neozork3_config_manager PRIVATE
     nlohmann_json::nlohmann_json
@@ -67,12 +67,12 @@ target_link_libraries(neozork3_config_manager PRIVATE
 
 # Connection Manager Module (example placeholder)
 add_library(neozork3_connection_manager STATIC
-    src/connection_manager.cpp # Uncommented: Provide at least one source
+    src/connection_manager.cpp # Provide at least one source
     # src/http_client.cpp
     # src/ws_client.cpp # Will need a WebSocket library
     # ...
 )
-target_include_directories(neozork3_connection_manager PUBLIC ../include)
+target_include_directories(neozork3_connection_manager PUBLIC include) # Corrected path
 # Dependencies: cpp-httplib, utils, (later WebSocket lib)
 target_link_libraries(neozork3_connection_manager PRIVATE
     # cpp_httplib # Since it's header-only, added via include_directories below
@@ -86,11 +86,11 @@ target_include_directories(neozork3_connection_manager PRIVATE ${cpp_httplib_SOU
 # CLI (Command Line Interface) Module
 # (Could be named neozork3_cli_logic to avoid confusion with the executable)
 add_library(neozork3_cli_logic STATIC
-    src/cli_parser.cpp # Uncommented: Provide at least one source
+    src/cli_parser.cpp # Provide at least one source
     # src/command_handler.cpp
     # ...
 )
-target_include_directories(neozork3_cli_logic PUBLIC ../include)
+target_include_directories(neozork3_cli_logic PUBLIC include) # Corrected path
 # Dependencies: config_manager and utils for accessing config and utilities
 target_link_libraries(neozork3_cli_logic PRIVATE
     neozork3_config_manager # Link against the config_manager static library
@@ -110,7 +110,7 @@ add_executable(neozork3_cli
 )
 
 # Specify the include path for the executable
-target_include_directories(neozork3_cli PUBLIC ../include)
+target_include_directories(neozork3_cli PUBLIC include) # Corrected path
 
 # Link the executable with the main CLI logic static library (which pulls in other dependencies)
 target_link_libraries(neozork3_cli PRIVATE
@@ -118,8 +118,8 @@ target_link_libraries(neozork3_cli PRIVATE
 )
 
 # If main.cpp directly uses httplib or json (try to avoid, use modules instead)
-# target_include_directories(neozork3_cli PRIVATE ${cpp_httplib_SOURCE_DIR})
-# target_link_libraries(neozork3_cli PRIVATE nlohmann_json::nlohmann_json)
+# target_include_directories(neozork3_cli PRIVATE ${cpp_httplib_SOURCE_DIR}) # Uncomment if needed
+# target_link_libraries(neozork3_cli PRIVATE nlohmann_json::nlohmann_json) # Uncomment if needed
 
 
 # --- Compile/Link Options (examples) ---
