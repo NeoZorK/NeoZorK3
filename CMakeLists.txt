@@ -44,19 +44,18 @@ FetchContent_MakeAvailable(nlohmann_json)
 # All header files (.hpp) are located in include/
 
 # Utilities Module (example)
-# Replace logger.cpp, string_utils.cpp, etc., with your actual files
-# when you create them in the src/ directory
-add_library(neozork3_utils STATIC  # Back to STATIC
-    # src/logger.cpp
-    # src/string_utils.cpp
+# Now includes at least one source file
+add_library(neozork3_utils STATIC
+    src/logger.cpp # Uncommented: Provide at least one source
+    # src/string_utils.cpp # Keep others commented until implemented
     # ... other utility .cpp files
 )
 # All modules can see header files from include/
 target_include_directories(neozork3_utils PUBLIC ../include) # Path relative to this CMakeLists.txt
 
 # Config Manager Module
-add_library(neozork3_config_manager STATIC # Back to STATIC
-    # src/config_manager.cpp
+add_library(neozork3_config_manager STATIC
+    src/config_manager.cpp # Uncommented: Provide at least one source
     # ...
 )
 target_include_directories(neozork3_config_manager PUBLIC ../include)
@@ -67,8 +66,8 @@ target_link_libraries(neozork3_config_manager PRIVATE
 )
 
 # Connection Manager Module (example placeholder)
-add_library(neozork3_connection_manager STATIC # Back to STATIC
-    # src/connection_manager.cpp
+add_library(neozork3_connection_manager STATIC
+    src/connection_manager.cpp # Uncommented: Provide at least one source
     # src/http_client.cpp
     # src/ws_client.cpp # Will need a WebSocket library
     # ...
@@ -86,8 +85,8 @@ target_include_directories(neozork3_connection_manager PRIVATE ${cpp_httplib_SOU
 
 # CLI (Command Line Interface) Module
 # (Could be named neozork3_cli_logic to avoid confusion with the executable)
-add_library(neozork3_cli_logic STATIC # Back to STATIC
-    # src/cli_parser.cpp
+add_library(neozork3_cli_logic STATIC
+    src/cli_parser.cpp # Uncommented: Provide at least one source
     # src/command_handler.cpp
     # ...
 )
