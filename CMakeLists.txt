@@ -44,25 +44,25 @@ FetchContent_MakeAvailable(nlohmann_json)
 # All header files (.hpp) are located in include/
 
 # Utilities Module (example)
-# Now includes at least one source file
 add_library(neozork3_utils STATIC
     src/logger.cpp # Provide at least one source
     # src/string_utils.cpp # Keep others commented until implemented
     # ... other utility .cpp files
 )
-# All modules can see header files from include/
-target_include_directories(neozork3_utils PUBLIC include) # Corrected path
+target_include_directories(neozork3_utils PUBLIC include) # Correct path
 
 # Config Manager Module
 add_library(neozork3_config_manager STATIC
     src/config_manager.cpp # Provide at least one source
     # ...
 )
-target_include_directories(neozork3_config_manager PUBLIC include) # Corrected path
-# Dependencies: nlohmann_json for parsing, utils for helper functions
-target_link_libraries(neozork3_config_manager PRIVATE
-    nlohmann_json::nlohmann_json
-    neozork3_utils # Link against the utils static library
+target_include_directories(neozork3_config_manager PUBLIC include) # Correct path
+# Dependencies: nlohmann_json needed by header, so PUBLIC. utils likely needed only by .cpp, so PRIVATE.
+target_link_libraries(neozork3_config_manager
+    PUBLIC # Changed to PUBLIC for nlohmann_json
+        nlohmann_json::nlohmann_json
+    PRIVATE # utils can stay PRIVATE if config_manager.hpp doesn't include utils headers
+        neozork3_utils
 )
 
 # Connection Manager Module (example placeholder)
@@ -72,34 +72,32 @@ add_library(neozork3_connection_manager STATIC
     # src/ws_client.cpp # Will need a WebSocket library
     # ...
 )
-target_include_directories(neozork3_connection_manager PUBLIC include) # Corrected path
-# Dependencies: cpp-httplib, utils, (later WebSocket lib)
+# Add include path for own headers
+target_include_directories(neozork3_connection_manager PUBLIC include) # Correct path
+# Add include path for httplib headers PUBLICLY if connection_manager.hpp includes httplib.h
+target_include_directories(neozork3_connection_manager PUBLIC ${cpp_httplib_SOURCE_DIR}) # Changed to PUBLIC
+# Link dependencies
 target_link_libraries(neozork3_connection_manager PRIVATE
-    # cpp_httplib # Since it's header-only, added via include_directories below
-    neozork3_utils # Link against the utils static library
+    # cpp_httplib is header only, path added above
+    neozork3_utils # Link against the utils static library (PRIVATE is likely ok)
     # ws_library # When you add WebSocket support
 )
-# Add the include path for cpp-httplib headers
-target_include_directories(neozork3_connection_manager PRIVATE ${cpp_httplib_SOURCE_DIR})
 
 
 # CLI (Command Line Interface) Module
-# (Could be named neozork3_cli_logic to avoid confusion with the executable)
 add_library(neozork3_cli_logic STATIC
     src/cli_parser.cpp # Provide at least one source
     # src/command_handler.cpp
     # ...
 )
-target_include_directories(neozork3_cli_logic PUBLIC include) # Corrected path
-# Dependencies: config_manager and utils for accessing config and utilities
+target_include_directories(neozork3_cli_logic PUBLIC include) # Correct path
+# Dependencies: These are likely needed by cli_parser.cpp, not cli_parser.hpp, so PRIVATE is fine.
+# CMake will handle transitive PUBLIC dependencies (like nlohmann_json from config_manager) automatically.
 target_link_libraries(neozork3_cli_logic PRIVATE
-    neozork3_config_manager # Link against the config_manager static library
-    neozork3_utils          # Link against the utils static library
-    # Add other modules called by the CLI
-    neozork3_connection_manager # Example, linking against connection_manager static library
+    neozork3_config_manager # Links PRIVATEly, but inherits PUBLIC dependencies like nlohmann_json
+    neozork3_utils
+    neozork3_connection_manager # Example
 )
-# If CLI uses httplib directly (unlikely, better through modules)
-# target_include_directories(neozork3_cli_logic PRIVATE ${cpp_httplib_SOURCE_DIR})
 
 
 # --- Executable ---
@@ -110,24 +108,18 @@ add_executable(neozork3_cli
 )
 
 # Specify the include path for the executable
-target_include_directories(neozork3_cli PUBLIC include) # Corrected path
+target_include_directories(neozork3_cli PUBLIC include) # Correct path
 
-# Link the executable with the main CLI logic static library (which pulls in other dependencies)
+# Link the executable with the main CLI logic static library
 target_link_libraries(neozork3_cli PRIVATE
-    neozork3_cli_logic
+    neozork3_cli_logic # Inherits PUBLIC include paths transitively
 )
-
-# If main.cpp directly uses httplib or json (try to avoid, use modules instead)
-# target_include_directories(neozork3_cli PRIVATE ${cpp_httplib_SOURCE_DIR}) # Uncomment if needed
-# target_link_libraries(neozork3_cli PRIVATE nlohmann_json::nlohmann_json) # Uncomment if needed
-
 
 # --- Compile/Link Options (examples) ---
 
 # Enable warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
-    # For Clang, can also add: -Wshadow -Wnon-virtual-dtor
 endif()
 
 # Optimization for Release builds
@@ -140,15 +132,9 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     target_compile_options(neozork3_cli PRIVATE -g)
 endif()
 
-# Add a define (example)
-# target_compile_definitions(neozork3_utils PUBLIC MY_PROJECT_DEFINE)
-
 # --- Installation (if needed) ---
-# Now installation is simpler, just install the executable
 # install(TARGETS neozork3_cli DESTINATION bin)
-# install(FILES include/my_public_header.hpp DESTINATION include) # Example header installation
 
 # --- Tests (if using CTest) ---
 # enable_testing()
-# add_test(NAME MyTest COMMAND $<TARGET_FILE:neozork3_cli> --test-something) # Use generator expression
-# add_subdirectory(tests) # If tests are in a separate folder with their own CMakeLists.txt
+# add_test(NAME MyTest COMMAND $<TARGET_FILE:neozork3_cli> --test-something)
