@@ -1,117 +1,155 @@
-# Минимальная версия CMake
-cmake_minimum_required(VERSION 3.15)
+# Minimum required CMake version
+cmake_minimum_required(VERSION 3.16)
 
-# Определение проекта
-project(NeoZorK3 LANGUAGES CXX)
+# Project name
+project(NeoZorK3 VERSION 1.0 LANGUAGES CXX)
 
-# Стандарт C++
+# Set C++ standard (C++17)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_EXTENSIONS OFF) # Recommended to disable compiler extensions
 
-# --- Опции Сборки ---
-option(NEOZORK3_LINK_STATIC_RUNTIME "Attempt to link C++ runtime statically" OFF)
-# Заметка: Результат зависит от компилятора и ОС.
-# На Linux с GCC/Clang часто используется флаг -static-libstdc++.
-# На Alpine/musl может потребоваться флаг -static для полной статической линковки.
-# На macOS статическая линковка libc++ не рекомендуется.
-# На Windows (MSVC) это управляется флагами /MT vs /MD.
+# --- Dependencies ---
+# Using FetchContent to manage dependencies
 
-message(STATUS "Link C++ runtime statically: ${NEOZORK3_LINK_STATIC_RUNTIME}")
-
-# --- Зависимости (FetchContent) ---
-# Скачивает и настраивает библиотеки во время выполнения cmake ..
 include(FetchContent)
 
+# 1. cpp-httplib (for HTTP/S requests)
 FetchContent_Declare(
-  nlohmann_json # Имя для CMake
-  GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG v3.11.3 # Конкретная версия для стабильности
-)
-FetchContent_MakeAvailable(nlohmann_json) # Скачать и сделать доступной
-
-FetchContent_Declare(
-  cpp_httplib # Имя для CMake
+  cpp_httplib
   GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-  GIT_TAG v0.15.3 # Конкретная версия
+  GIT_TAG        v0.15.3 # Use an up-to-date stable tag/commit
 )
-FetchContent_MakeAvailable(cpp_httplib) # Скачать и сделать доступной
+FetchContent_MakeAvailable(cpp_httplib)
+# cpp-httplib is a header-only library, but there's no target, include via include_directories
 
-# Опционально: Поиск OpenSSL для HTTPS в httplib
-# find_package() пытается найти библиотеку, установленную в системе
-# Для FetchContent-библиотек он обычно не нужен, если они сами не требуют
-find_package(OpenSSL QUIET) # QUIET - не выводить ошибку, если не найдено
+# 2. nlohmann/json (for working with JSON)
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG        v3.11.3 # Use an up-to-date stable tag/commit
+)
+FetchContent_MakeAvailable(nlohmann_json)
+# nlohmann_json provides the target nlohmann_json::nlohmann_json
 
-# --- Определение пути вывода бинарников ---
-# ${CMAKE_SOURCE_DIR} - это корневая папка проекта (где лежит этот CMakeLists.txt)
-set(NEOZORK3_BIN_BASE_DIR ${CMAKE_SOURCE_DIR}/bin)
+# 3. WebSocket library (PLACEHOLDER - needs to be added later)
+# Example for uWebSockets (will also require libuv and zlib)
+# FetchContent_Declare(...)
+# Or for Boost.Beast (will require Boost)
+# find_package(Boost REQUIRED COMPONENTS system beast)
 
-# Определяем подпапку в bin/ в зависимости от ОС и архитектуры
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-        set(PLATFORM_BIN_DIR ${NEOZORK3_BIN_BASE_DIR}/linux)
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
-        set(PLATFORM_BIN_DIR ${NEOZORK3_BIN_BASE_DIR}/linux_arm)
-    else()
-        set(PLATFORM_BIN_DIR ${NEOZORK3_BIN_BASE_DIR}/linux_other)
-    endif()
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin") # macOS
-    set(PLATFORM_BIN_DIR ${NEOZORK3_BIN_BASE_DIR}/macos)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(PLATFORM_BIN_DIR ${NEOZORK3_BIN_BASE_DIR}/win)
-else()
-    set(PLATFORM_BIN_DIR ${NEOZORK3_BIN_BASE_DIR}/other)
-endif()
 
-# Устанавливаем папку вывода для исполняемых файлов
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PLATFORM_BIN_DIR})
-message(STATUS "Binary output directory: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+# --- Module Definitions (as logical STATIC libraries) ---
+# All source files (.cpp) are located in src/
+# All header files (.hpp) are located in include/
 
-# --- Определение исполняемого файла ---
+# Utilities Module (example)
+# Replace logger.cpp, string_utils.cpp, etc., with your actual files
+# when you create them in the src/ directory
+add_library(neozork3_utils STATIC  # Back to STATIC
+    # src/logger.cpp
+    # src/string_utils.cpp
+    # ... other utility .cpp files
+)
+# All modules can see header files from include/
+target_include_directories(neozork3_utils PUBLIC ../include) # Path relative to this CMakeLists.txt
+
+# Config Manager Module
+add_library(neozork3_config_manager STATIC # Back to STATIC
+    # src/config_manager.cpp
+    # ...
+)
+target_include_directories(neozork3_config_manager PUBLIC ../include)
+# Dependencies: nlohmann_json for parsing, utils for helper functions
+target_link_libraries(neozork3_config_manager PRIVATE
+    nlohmann_json::nlohmann_json
+    neozork3_utils # Link against the utils static library
+)
+
+# Connection Manager Module (example placeholder)
+add_library(neozork3_connection_manager STATIC # Back to STATIC
+    # src/connection_manager.cpp
+    # src/http_client.cpp
+    # src/ws_client.cpp # Will need a WebSocket library
+    # ...
+)
+target_include_directories(neozork3_connection_manager PUBLIC ../include)
+# Dependencies: cpp-httplib, utils, (later WebSocket lib)
+target_link_libraries(neozork3_connection_manager PRIVATE
+    # cpp_httplib # Since it's header-only, added via include_directories below
+    neozork3_utils # Link against the utils static library
+    # ws_library # When you add WebSocket support
+)
+# Add the include path for cpp-httplib headers
+target_include_directories(neozork3_connection_manager PRIVATE ${cpp_httplib_SOURCE_DIR})
+
+
+# CLI (Command Line Interface) Module
+# (Could be named neozork3_cli_logic to avoid confusion with the executable)
+add_library(neozork3_cli_logic STATIC # Back to STATIC
+    # src/cli_parser.cpp
+    # src/command_handler.cpp
+    # ...
+)
+target_include_directories(neozork3_cli_logic PUBLIC ../include)
+# Dependencies: config_manager and utils for accessing config and utilities
+target_link_libraries(neozork3_cli_logic PRIVATE
+    neozork3_config_manager # Link against the config_manager static library
+    neozork3_utils          # Link against the utils static library
+    # Add other modules called by the CLI
+    neozork3_connection_manager # Example, linking against connection_manager static library
+)
+# If CLI uses httplib directly (unlikely, better through modules)
+# target_include_directories(neozork3_cli_logic PRIVATE ${cpp_httplib_SOURCE_DIR})
+
+
+# --- Executable ---
+# Uses src/main.cpp as the entry point
+
 add_executable(neozork3_cli
     src/main.cpp
-    # Добавляйте сюда другие ваши .cpp файлы из папки src/
-    # src/another_source.cpp
 )
 
-# --- Указание папок с заголовочными файлами ---
-# Где искать #include "..." и #include <...>
-target_include_directories(neozork3_cli PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    # ${nlohmann_json_SOURCE_DIR}/include # <-- ЗАКОММЕНТИРУЙТЕ ИЛИ УДАЛИТЕ ЭТУ СТРОКУ
-    ${cpp_httplib_SOURCE_DIR}
+# Specify the include path for the executable
+target_include_directories(neozork3_cli PUBLIC ../include)
+
+# Link the executable with the main CLI logic static library (which pulls in other dependencies)
+target_link_libraries(neozork3_cli PRIVATE
+    neozork3_cli_logic
 )
 
-# --- Управление Линковкой C++ Runtime ---
-if(NEOZORK3_LINK_STATIC_RUNTIME)
-    # Пытаемся добавить флаги для статической линковки C++ runtime
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        # Флаг для GCC/Clang на Linux
-        # Для полной статической сборки на musl может понадобиться "-static"
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++")
-        message(STATUS "Attempting static linkage of libstdc++ (or libc++ if Clang)")
-    elseif(MSVC)
-        message(WARNING "Static runtime linking requested for MSVC - ensure /MT flag is used (e.g., via CMAKE_MSVC_RUNTIME_LIBRARY or toolchain).")
-    else()
-        message(WARNING "Static runtime linking requested but no specific flags set for this compiler/platform.")
-    endif()
+# If main.cpp directly uses httplib or json (try to avoid, use modules instead)
+# target_include_directories(neozork3_cli PRIVATE ${cpp_httplib_SOURCE_DIR})
+# target_link_libraries(neozork3_cli PRIVATE nlohmann_json::nlohmann_json)
+
+
+# --- Compile/Link Options (examples) ---
+
+# Enable warnings
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
+    # For Clang, can also add: -Wshadow -Wnon-virtual-dtor
 endif()
 
-# --- Линковка Библиотек ---
-# Связывание скомпилированного кода с библиотеками
-target_link_libraries(neozork3_cli PRIVATE
-    nlohmann_json::nlohmann_json # <--- ДОБАВЬТЕ ЭТУ СТРОКУ
+# Optimization for Release builds
+if(CMAKE_BUILD_TYPE MATCHES Release)
+    target_compile_options(neozork3_cli PRIVATE -O3)
+endif()
 
-    # ... остальная часть секции (проверка OpenSSL и т.д.) ...
-    # if(OpenSSL_FOUND AND TARGET OpenSSL::SSL AND TARGET OpenSSL::Crypto)
-    #   target_link_libraries(neozork3_cli PRIVATE OpenSSL::SSL OpenSSL::Crypto)
-    # endif()
-)
+# For Debug builds, can add debug flags
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    target_compile_options(neozork3_cli PRIVATE -g)
+endif()
 
-# --- Опционально: Компиляционные определения ---
-# Установка макросов препроцессора (например, -DNAME=VALUE)
-# if(OpenSSL_FOUND)
-#   # Этот макрос включает код поддержки SSL в cpp-httplib
-#   target_compile_definitions(neozork3_cli PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
-#   message(STATUS "Enabled OpenSSL support in cpp-httplib")
-# endif()
+# Add a define (example)
+# target_compile_definitions(neozork3_utils PUBLIC MY_PROJECT_DEFINE)
+
+# --- Installation (if needed) ---
+# Now installation is simpler, just install the executable
+# install(TARGETS neozork3_cli DESTINATION bin)
+# install(FILES include/my_public_header.hpp DESTINATION include) # Example header installation
+
+# --- Tests (if using CTest) ---
+# enable_testing()
+# add_test(NAME MyTest COMMAND $<TARGET_FILE:neozork3_cli> --test-something) # Use generator expression
+# add_subdirectory(tests) # If tests are in a separate folder with their own CMakeLists.txt
