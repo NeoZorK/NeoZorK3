@@ -34,7 +34,7 @@
 using json = nlohmann::json;
 
 // --- Project Version ---
-const std::string NEOZORK3_VERSION = "0.1.3"; // Версия
+const std::string NEOZORK3_VERSION = "0.1.5"; // Версия
 
 // --- Helper Function for URL Parsing ---
 bool parse_url(const std::string& url, std::string& scheme, std::string& host, int& port, std::string& path) {
