@@ -59,9 +59,9 @@ add_library(neozork3_config_manager STATIC
 target_include_directories(neozork3_config_manager PUBLIC include) # Correct path
 # Dependencies: nlohmann_json needed by header, so PUBLIC. utils likely needed only by .cpp, so PRIVATE.
 target_link_libraries(neozork3_config_manager
-    PUBLIC # Changed to PUBLIC for nlohmann_json
+    PUBLIC # nlohmann_json path needs to propagate up
         nlohmann_json::nlohmann_json
-    PRIVATE # utils can stay PRIVATE if config_manager.hpp doesn't include utils headers
+    PRIVATE
         neozork3_utils
 )
 
@@ -72,10 +72,9 @@ add_library(neozork3_connection_manager STATIC
     # src/ws_client.cpp # Will need a WebSocket library
     # ...
 )
-# Add include path for own headers
 target_include_directories(neozork3_connection_manager PUBLIC include) # Correct path
 # Add include path for httplib headers PUBLICLY if connection_manager.hpp includes httplib.h
-target_include_directories(neozork3_connection_manager PUBLIC ${cpp_httplib_SOURCE_DIR}) # Changed to PUBLIC
+target_include_directories(neozork3_connection_manager PUBLIC ${cpp_httplib_SOURCE_DIR})
 # Link dependencies
 target_link_libraries(neozork3_connection_manager PRIVATE
     # cpp_httplib is header only, path added above
@@ -91,8 +90,6 @@ add_library(neozork3_cli_logic STATIC
     # ...
 )
 target_include_directories(neozork3_cli_logic PUBLIC include) # Correct path
-# Dependencies: These are likely needed by cli_parser.cpp, not cli_parser.hpp, so PRIVATE is fine.
-# CMake will handle transitive PUBLIC dependencies (like nlohmann_json from config_manager) automatically.
 target_link_libraries(neozork3_cli_logic PRIVATE
     neozork3_config_manager # Links PRIVATEly, but inherits PUBLIC dependencies like nlohmann_json
     neozork3_utils
@@ -107,8 +104,16 @@ add_executable(neozork3_cli
     src/main.cpp
 )
 
-# Specify the include path for the executable
+# Specify the include path for OUR headers
 target_include_directories(neozork3_cli PUBLIC include) # Correct path
+
+# --- WORKAROUND ---
+# Explicitly add include path for nlohmann_json to the executable target.
+# This shouldn't be strictly necessary if PUBLIC propagation works,
+# but it ensures the compiler finds headers included by our own headers (like config_manager.hpp).
+target_include_directories(neozork3_cli PRIVATE ${nlohmann_json_SOURCE_DIR}/include)
+# If main.cpp were to include connection_manager.hpp, we might need this too:
+# target_include_directories(neozork3_cli PRIVATE ${cpp_httplib_SOURCE_DIR})
 
 # Link the executable with the main CLI logic static library
 target_link_libraries(neozork3_cli PRIVATE
