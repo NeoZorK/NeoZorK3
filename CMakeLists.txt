@@ -49,4 +49,5 @@ target_link_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-s>) # Удал�
 # target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-flto>)
 # target_link_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-flto>)
 
-
+# Пере-Сборка одной командой (находясь в папке build)
+# cd .. && rm -rf build && mkdir build && cd build && cmake .. -G Xcode -DCMAKE_BUILD_TYPE=Release && cmake --build . --config Release”
