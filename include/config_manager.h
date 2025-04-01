@@ -20,8 +20,6 @@ namespace neozork::config_manager {
         std::optional<int> per_hour;
         std::optional<int> per_day;
         std::optional<int> per_month;
-
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(struct_rate_limits, per_second, per_minute, per_hour, per_day, per_month);
     };
 
     struct struct_endpoint_connection_status {
@@ -31,8 +29,6 @@ namespace neozork::config_manager {
         std::optional<long long> traffic_in_bytes;
         std::optional<long long> traffic_out_bytes;
         std::optional<long long> rpc_response_size_bytes;
-
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(struct_endpoint_connection_status, is_active, latency_ms, last_check, traffic_in_bytes, traffic_out_bytes, rpc_response_size_bytes);
     };
 
     struct struct_endpoint {
@@ -45,8 +41,6 @@ namespace neozork::config_manager {
         std::optional<std::string> access_token;
         std::optional<int> parallel_query_allowance;
         std::optional<long long> last_block_number;
-
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(struct_endpoint, url, supported_types, status, rate_limits, access_token, parallel_query_allowance, last_block_number);
     };
 
     struct struct_token_info {
@@ -68,7 +62,6 @@ namespace neozork::config_manager {
         std::string name;
         std::optional<std::string> router_address;
         std::optional<std::string> factory_address;
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(struct_dex_info, id, name, router_address, factory_address);
     };
 
     struct struct_blockchain_info {
@@ -78,16 +71,32 @@ namespace neozork::config_manager {
         std::vector<struct_dex_info> dexes;
         std::vector<struct_pool_info> pools;
         std::vector<struct_endpoint> endpoints;
-
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(struct_blockchain_info, name, network_id, block_speed_ms, dexes, pools, endpoints);
     };
 
     // Корневая структура конфига
     struct struct_config {
         std::vector<struct_blockchain_info> blockchains;
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(struct_config, blockchains);
     };
 
+// --- Объявления функций to_json/from_json
+
+   void to_json(nlohmann::json& j, const struct_config& p);
+   void from_json(const nlohmann::json& j, struct_config& p);
+
+    void to_json(nlohmann::json& j, const struct_rate_limits& p);
+    void from_json(const nlohmann::json& j, struct_rate_limits& p);
+
+    void to_json(nlohmann::json& j, const struct_endpoint_connection_status& p);
+    void from_json(const nlohmann::json& j, struct_endpoint_connection_status& p);
+
+   void to_json(nlohmann::json& j, const struct_endpoint& p);
+   void from_json(const nlohmann::json& j, struct_endpoint& p);
+
+   void to_json(nlohmann::json& j, const struct_dex_info& p);
+   void from_json(const nlohmann::json& j, struct_dex_info& p);
+
+   void to_json(nlohmann::json& j, const struct_blockchain_info& p);
+   void from_json(const nlohmann::json& j, struct_blockchain_info& p);
 
     // --- Объявления Основных Функций Модуля ---
 

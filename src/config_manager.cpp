@@ -19,6 +19,158 @@ using json = nlohmann::json;
 // Начинаем реализацию в нашем пространстве имен
 namespace neozork::config_manager {
 
+// --- Реализация to_json / from_json ---
+
+// Для struct_config
+void to_json(json& j, const struct_config& p) {
+    j = json::object();
+    // Поле blockchains обязательно, просто присваиваем.
+    // Будет использована to_json для vector<struct_blockchain_info>
+    j["blockchains"] = p.blockchains;
+}
+
+// Для struct_rate_limits
+void to_json(json& j, const struct_rate_limits& p) {
+    // Присваиваем только если optional содержит значение
+    if (p.per_second.has_value()) j["per_second"] = p.per_second.value();
+    if (p.per_minute.has_value()) j["per_minute"] = p.per_minute.value();
+    if (p.per_hour.has_value()) j["per_hour"] = p.per_hour.value();
+    if (p.per_day.has_value()) j["per_day"] = p.per_day.value();
+    if (p.per_month.has_value()) j["per_month"] = p.per_month.value();
+}
+
+// Для struct_endpoint_connection_status
+void to_json(json& j, const struct_endpoint_connection_status& p) {
+    j["is_active"] = p.is_active; // Обязательное поле
+    if (p.latency_ms.has_value()) j["latency_ms"] = p.latency_ms.value();
+    if (p.last_check.has_value()) j["last_check"] = p.last_check.value();
+    if (p.traffic_in_bytes.has_value()) j["traffic_in_bytes"] = p.traffic_in_bytes.value();
+    if (p.traffic_out_bytes.has_value()) j["traffic_out_bytes"] = p.traffic_out_bytes.value();
+    if (p.rpc_response_size_bytes.has_value()) j["rpc_response_size_bytes"] = p.rpc_response_size_bytes.value();
+}
+
+// Для struct_endpoint
+void to_json(json& j, const struct_endpoint& p) {
+    j = json::object(); // Начинаем с пустого объекта
+    j["url"] = p.url;
+    j["supported_types"] = p.supported_types;
+    j["status"] = p.status; // Использует to_json для map<string, struct_endpoint_connection_status>
+    // Используем to_json для optional<struct_rate_limits>
+    if (p.rate_limits.has_value()) j["rate_limits"] = p.rate_limits.value();
+    if (p.access_token.has_value()) j["access_token"] = p.access_token.value();
+    if (p.parallel_query_allowance.has_value()) j["parallel_query_allowance"] = p.parallel_query_allowance.value();
+    if (p.last_block_number.has_value()) j["last_block_number"] = p.last_block_number.value();
+}
+
+// Для struct_dex_info
+void to_json(json& j, const struct_dex_info& p) {
+    j = json::object();
+    j["id"] = p.id;
+    j["name"] = p.name;
+    if (p.router_address.has_value()) j["router_address"] = p.router_address.value();
+    if (p.factory_address.has_value()) j["factory_address"] = p.factory_address.value();
+}
+
+// Для struct_blockchain_info
+void to_json(json& j, const struct_blockchain_info& p) {
+    j = json::object();
+    j["name"] = p.name;
+    j["network_id"] = p.network_id;
+    if (p.block_speed_ms.has_value()) j["block_speed_ms"] = p.block_speed_ms.value();
+    j["dexes"] = p.dexes;     // Использует to_json для vector<struct_dex_info>
+    j["pools"] = p.pools;     // Использует to_json для vector<struct_pool_info>
+    j["endpoints"] = p.endpoints; // Использует to_json для vector<struct_endpoint>
+}
+
+// Для struct_rate_limits
+void from_json(const json& j, struct_rate_limits& p) {
+    if (j.contains("per_second") && !j.at("per_second").is_null()) p.per_second = j.at("per_second").get<int>(); else p.per_second = std::nullopt;
+    if (j.contains("per_minute") && !j.at("per_minute").is_null()) p.per_minute = j.at("per_minute").get<int>(); else p.per_minute = std::nullopt;
+    if (j.contains("per_hour") && !j.at("per_hour").is_null()) p.per_hour = j.at("per_hour").get<int>(); else p.per_hour = std::nullopt;
+    if (j.contains("per_day") && !j.at("per_day").is_null()) p.per_day = j.at("per_day").get<int>(); else p.per_day = std::nullopt;
+    if (j.contains("per_month") && !j.at("per_month").is_null()) p.per_month = j.at("per_month").get<int>(); else p.per_month = std::nullopt;
+}
+
+// Для struct_endpoint_connection_status
+void from_json(const json& j, struct_endpoint_connection_status& p) {
+    // Для обязательного bool используем value() с умолчанием
+    p.is_active = j.value("is_active", false);
+    // Для optional используем проверку + get<T>()
+    if (j.contains("latency_ms") && !j.at("latency_ms").is_null()) p.latency_ms = j.at("latency_ms").get<double>(); else p.latency_ms = std::nullopt;
+    if (j.contains("last_check") && !j.at("last_check").is_null()) p.last_check = j.at("last_check").get<std::string>(); else p.last_check = std::nullopt;
+    if (j.contains("traffic_in_bytes") && !j.at("traffic_in_bytes").is_null()) p.traffic_in_bytes = j.at("traffic_in_bytes").get<long long>(); else p.traffic_in_bytes = std::nullopt;
+    if (j.contains("traffic_out_bytes") && !j.at("traffic_out_bytes").is_null()) p.traffic_out_bytes = j.at("traffic_out_bytes").get<long long>(); else p.traffic_out_bytes = std::nullopt;
+    if (j.contains("rpc_response_size_bytes") && !j.at("rpc_response_size_bytes").is_null()) p.rpc_response_size_bytes = j.at("rpc_response_size_bytes").get<long long>(); else p.rpc_response_size_bytes = std::nullopt;
+}
+
+// --- Обновленная Реализация from_json для struct_endpoint ---
+void from_json(const json& j, struct_endpoint& p) {
+    // Обязательные или с дефолтом в структуре
+    j.at("url").get_to(p.url); // Используем get_to для базового типа string
+    p.supported_types = j.value("supported_types", std::vector<std::string>{"http", "https", "ws", "wss", "ipc"});
+    p.status = j.value("status", std::map<std::string, struct_endpoint_connection_status>{});
+
+    // Optional поля
+    // Для optional<struct_rate_limits> используем get<struct_rate_limits>()
+    if (j.contains("rate_limits") && !j.at("rate_limits").is_null()) {
+         p.rate_limits = j.at("rate_limits").get<struct_rate_limits>(); // ИСПРАВЛЕНО ЗДЕСЬ
+    } else {
+        p.rate_limits = std::nullopt;
+    }
+    // Для optional<базовый_тип> используем get<T>
+    if (j.contains("access_token") && !j.at("access_token").is_null()) {
+        p.access_token = j.at("access_token").get<std::string>();
+    } else {
+        p.access_token = std::nullopt;
+    }
+    if (j.contains("parallel_query_allowance") && !j.at("parallel_query_allowance").is_null()) {
+        p.parallel_query_allowance = j.at("parallel_query_allowance").get<int>();
+    } else {
+        p.parallel_query_allowance = std::nullopt;
+    }
+    if (j.contains("last_block_number") && !j.at("last_block_number").is_null()) {
+        p.last_block_number = j.at("last_block_number").get<long long>();
+     } else {
+        p.last_block_number = std::nullopt;
+    }
+}
+
+// Для struct_dex_info
+void from_json(const json& j, struct_dex_info& p) {
+    j.at("id").get_to(p.id);
+    j.at("name").get_to(p.name);
+    // Optional поля
+    if (j.contains("router_address") && !j.at("router_address").is_null()) p.router_address = j.at("router_address").get<std::string>(); else p.router_address = std::nullopt;
+    if (j.contains("factory_address") && !j.at("factory_address").is_null()) p.factory_address = j.at("factory_address").get<std::string>(); else p.factory_address = std::nullopt;
+}
+
+// Для struct_blockchain_info
+void from_json(const json& j, struct_blockchain_info& p) {
+    j.at("name").get_to(p.name);
+    j.at("network_id").get_to(p.network_id);
+
+    // Optional<double> - исправляем здесь (строка ~135)
+    if (j.contains("block_speed_ms") && !j.at("block_speed_ms").is_null()) {
+         p.block_speed_ms = j.at("block_speed_ms").get<double>(); // Используем get<double>()
+    } else {
+         p.block_speed_ms = std::nullopt;
+    }
+
+    // Для векторов используем value() с пустым вектором как дефолт
+    p.dexes = j.value("dexes", std::vector<struct_dex_info>{});
+    p.pools = j.value("pools", std::vector<struct_pool_info>{});
+    p.endpoints = j.value("endpoints", std::vector<struct_endpoint>{});
+}
+
+// Для struct_config
+void from_json(const json& j, struct_config& p) {
+    // Используем value() на случай, если ключ "blockchains" отсутствует
+    p.blockchains = j.value("blockchains", std::vector<struct_blockchain_info>{});
+    // Или используем at().get_to(), если массив "blockchains" должен быть всегда:
+    // j.at("blockchains").get_to(p.blockchains);
+}
+
+
     /**
      * @brief Вспомогательная функция для получения директории исполняемого файла.
      * @warning Текущая реализация возвращает текущую рабочую директорию.
