@@ -1,3 +1,13 @@
+#ifndef NEOZORK3_MAIN_H
+#define NEOZORK3_MAIN_H
+
+// Этот файл может быть пустым или содержать
+// какие-то глобальные константы/объявления,
+// но лучше избегать глобального состояния.
+// Вероятно, его можно будет удалить.
+
+#endif // NEOZORK3_MAIN_H
+
 #include <iostream>
 #include <vector>
 #include <string>
