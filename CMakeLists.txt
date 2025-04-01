@@ -25,7 +25,8 @@ FetchContent_MakeAvailable(nlohmann_json)
 # Просто собираем main.cpp в исполняемый файл neozork3_cli
 add_executable(neozork3_cli
                             src/main.cpp
-                            src/config_manager.cpp)
+                            src/config_manager.cpp
+                            src/cli_parser.cpp)
 
 # Specify the include path for the executable
 # Указываем путь к нашим заголовкам (папка include/)
