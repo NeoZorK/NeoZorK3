@@ -8,7 +8,7 @@
 namespace neozork::cli_parser {
 
     void print_help() {
-        std::cout << "NeoZorK3 DEX Arbitrage Bot\n"
+        std::cout << "NeoZorK3 Blockchain Arbitrage system\n"
                   << "Usage: neozork3_cli [options]\n\n"
                   << "Options:\n"
                   << "  --help         Show this help message and exit.\n"
@@ -18,6 +18,10 @@ namespace neozork::cli_parser {
     }
 
     void parse_arguments(int argc, char* argv[], neozork::config_manager::struct_config& config) {
+        
+        // Подавляем предупреждение о неиспользуемом параметре 'config'
+                 (void)config;
+        
          // Преобразуем C-style аргументы в более удобный std::vector<std::string>
          std::vector<std::string> args(argv + 1, argv + argc); // +1 чтобы пропустить имя программы
 
