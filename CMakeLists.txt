@@ -17,11 +17,36 @@ add_executable(neozork3_cli src/main.cpp)
 # Указываем путь к нашим заголовкам (папка include/)
 target_include_directories(neozork3_cli PUBLIC include)
 
-# --- Optional: Basic Compile Options ---
-# Можно добавить позже, если минимальная сборка пройдет
-# if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-#     target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
-# endif()
-# if(CMAKE_BUILD_TYPE MATCHES Debug)
-#     target_compile_options(neozork3_cli PRIVATE -g)
-# endif()
+# --- Compile/Link Options ---
+
+# Общие опции для всех сборок (предупреждения)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Опции для конкретных конфигураций с использованием $<CONFIG:...>
+
+# Debug: добавляем только отладочные символы
+target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:Debug>:-g>)
+
+# Release: высокая оптимизация (-O3), отключаем NDEBUG
+target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-O3 -DNDEBUG>)
+# Можно добавить удаление символов (strip) для Release, если нужно уменьшить размер
+# target_link_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-s>)
+
+# RelWithDebInfo: оптимизация (-O2 часто лучше для отладки, чем O3) + символы
+target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>)
+
+# MinSizeRel: оптимизация для размера (-Os), отключаем NDEBUG, удаляем символы (strip)
+target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>)
+target_link_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-s>) # Удаляем символы для минимального размера
+
+# --- Опционально: Link Time Optimization (LTO) ---
+# Может уменьшить размер и улучшить производительность, но увеличивает время линковки.
+# Можно добавить для Release или MinSizeRel. Раскомментируйте для включения.
+# target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-flto>)
+# target_link_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-flto>)
+# target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-flto>)
+# target_link_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-flto>)
+
+
