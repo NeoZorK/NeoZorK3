@@ -9,6 +9,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# --- Dependencies ---
+include(FetchContent)
+
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG        v3.11.3 # Use an up-to-date stable tag/commit
+)
+FetchContent_MakeAvailable(nlohmann_json)
+# nlohmann_json::nlohmann_json target is now available but not linked yet
+
+
 # --- Executable ---
 # Просто собираем main.cpp в исполняемый файл neozork3_cli
 add_executable(neozork3_cli
@@ -18,6 +30,11 @@ add_executable(neozork3_cli
 # Specify the include path for the executable
 # Указываем путь к нашим заголовкам (папка include/)
 target_include_directories(neozork3_cli PUBLIC include)
+
+# Явно добавляем путь к заголовкам nlohmann_json для neozork3_cli,
+# так как config_manager.cpp сейчас часть этой цели и включает json.hpp
+target_include_directories(neozork3_cli PRIVATE ${nlohmann_json_SOURCE_DIR}/include)
+
 
 # --- Compile/Link Options ---
 
