@@ -30,43 +30,42 @@ command_parameters parse_arguments(int argc, char* argv[]) {
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
         
-        if (arg == "--help") {
+        if (arg == "--help" || arg == "-h") {
             params.type = command_type::HELP;
             return params; // Return immediately
-        } else if (arg == "--config-init") {
+        } else if (arg == "--config-init" || arg == "-i") {
             params.type = command_type::CONFIG_INIT;
             return params; // Return immediately
-        } else if (arg == "--discover-endpoints") {
+        } else if (arg == "--discover-endpoints" || arg == "-d") {
             params.type = command_type::DISCOVER_ENDPOINTS;
-            // Continue parsing options for this command
+            
+            // if --blockchain is found, check if it has a value
+            if (i + 1 < args.size() && args[i+1].rfind("--", 0) != 0) {
+                params.blockchain_name = args[++i];
+                // if --source is found, check if it has a value
+                if (i + 1 < args.size() && args[i+1].rfind("--", 0) != 0) {
+                    params.sources.push_back(args[++i]);
+                }
+            }
+            // Flags are processed in the next iteration
         } else if (arg == "--blockchain") {
-            if (i + 1 < args.size()) { // Check if there's a next argument
-                params.blockchain_name = args[++i]; // Take next arg as value and increment i
-            } else {
-                throw std::runtime_error("Missing value for argument: " + arg);
-            }
+            
         } else if (arg == "--source") {
-            if (i + 1 < args.size()) {
-                params.sources.push_back(args[++i]); // Add source to vector
-            } else {
-                throw std::runtime_error("Missing value for argument: " + arg);
-            }
+            
         }
-        // TODO: Add handling for other arguments (--scan-endpoints, etc.)
-        else {
-            throw std::runtime_error("Unknown argument or misplaced value: " + arg);
-        }
+        
     }
     
     // Check required arguments for commands
     if (params.type == command_type::DISCOVER_ENDPOINTS) {
         if (!params.blockchain_name.has_value()) {
-            throw std::runtime_error("--blockchain is required for --discover-endpoints");
+            throw std::runtime_error("--blockchain or positional blockchain name is required for -d/--discover-endpoints");
         }
-        // Add default source if none provided (NEW)
+        // If no sources are provided, use the default
         if (params.sources.empty()) {
             const std::string default_source = "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-1.json";
-            std::cout << "No --source specified, using default: " << default_source << std::endl;
+            // TODO: Add more default sources for other blockchains
+            std::cout << "No --source specified or positional URL, using default for EIP155-1: " << default_source << std::endl;
             params.sources.push_back(default_source);
         }
     }
