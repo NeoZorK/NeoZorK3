@@ -1,5 +1,6 @@
 #include "cli_parser.h"     // Our header
 #include "config_manager.h" // To call initialize_config
+#include "version.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -7,18 +8,62 @@
 
 namespace neozork::cli_parser {
 
+// Prints the help message
 void print_help() {
-    std::cout << "NeoZorK3 DEX Arbitrage Bot\n"
-    << "Usage: neozork3_cli [command] [options]\n\n"
+    
+    // Print the help message
+    std::cout << "NeoZorK3 DEX Arbitrage Bot " <<neozork::PROGRAM_VERSION << "\n"
+    << "===================================\n\n"
+    << "Usage: neozork3_cli <command> [options]\n\n"
     << "Commands:\n"
-    << "  --help                 Show this help message and exit.\n"
-    << "  --config-init          Initialize/reset the configuration file and exit.\n"
-    << "  --discover-endpoints   Discover RPC endpoints from sources.\n"
-    << "                         Requires --blockchain and --source flags.\n"
-    // TODO: Add description for other commands and options later
-    << "\nOptions for --discover-endpoints:\n"
-    << "  --blockchain <name>    Specify the blockchain name or network ID.\n"
-    << "  --source <url/name>    Specify source (URL or keyword like defillama). Can be used multiple times.\n"
+    << "  -h, --help             Show this help message and exit.\n"
+    << "      --config-init      Initialize/reset the configuration file to default and exit.\n"
+    << "  -d, --discover-endpoints\n"
+    << "                         Discover RPC endpoints from specified sources (or default).\n"
+    << "                         Requires --blockchain. Optionally uses --source.\n"
+    // --- Planned Commands (add descriptions later) ---
+    << "      --scan-endpoints     Scan configured endpoints for a blockchain.\n"
+    // << "                      Requires --blockchain.\n"
+    << "      --scan-single-endpoint\n"
+    // << "                         Scan a specific endpoint URL.\n"
+    // << "                         Requires --blockchain and --endpoint.\n"
+    << "      --show-active-endpoints\n"
+    // << "                         List active endpoints for a blockchain.\n"
+    // << "                         Requires --blockchain.\n"
+    << "      --measure-block-speed\n"
+    // << "                         Measure block speed for a blockchain.\n"
+    // << "                         Requires --blockchain.\n"
+    << "      --find-dexes         Discover DEXes on a blockchain.\n"
+    // << "                         Requires --blockchain.\n"
+    << "      --find-pools         Discover pools for a DEX on a blockchain.\n"
+    // << "                         Requires --blockchain and --dex.\n"
+    << "      --get-token-price    Get token price info.\n"
+    // << "                         Requires <token_name> and optionally --blockchain, --dex.\n"
+    << "      --find-pools-for-token\n"
+    // << "                         List pools containing a specific token.\n"
+    // << "                         Requires <token_name>.\n"
+    << "      --find-arbitrage-once\n"
+    // << "                         Perform a single arbitrage check/trade attempt.\n"
+    // << "                         Requires options like --blockchain, --mode, etc.\n"
+    << "      --run-tasks          Run continuous background arbitrage tasks.\n"
+    << "\nCommon Options:\n"
+    << "      --blockchain <name>  Specify the target blockchain name or network ID.\n"
+    << "                         Required by most commands.\n"
+    << "      --source <url/name>  Specify data source for discovery (URL or keyword).\n"
+    << "                         Can be used multiple times. Defaults to EIP155-1 list if omitted.\n"
+    // --- Planned Options (add descriptions later) ---
+    << "      --password <pass>    Password for encrypted operations (if any).\n"
+    << "      --endpoint <url>     Specify a single endpoint URL (for --scan-single-endpoint).\n"
+    << "      --dex <dex_id>       Specify DEX ID (for --find-pools, --get-token-price).\n"
+    << "      --connection-type <https|wss|ipc>\n"
+    // << "                         Preferred connection type for actions.\n"
+    << "      --mode <show|trade>  Operation mode for arbitrage tasks.\n"
+    << "      --strategy <max-profit|stable-profit|min-risk>\n"
+    // << "                         Profit/risk strategy for arbitrage.\n"
+    << "      --arbitrage-types <type1,type2,...|all>\n"
+    // << "                         Specify arbitrage types to search for.\n"
+    << "      --sync-to-block    Attempt to synchronize actions with new blocks.\n"
+    
     << std::endl;
 }
 
