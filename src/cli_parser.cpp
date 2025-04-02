@@ -17,7 +17,7 @@ void print_help() {
     << "Usage: neozork3_cli <command> [options]\n\n"
     << "Commands:\n"
     << "  -h, --help             Show this help message and exit.\n"
-    << "      --config-init      Initialize/reset the configuration file to default and exit.\n"
+    << "  -i, --config-init      Initialize/reset the configuration file to default and exit.\n"
     << "  -d, --discover-endpoints\n"
     << "                         Discover RPC endpoints from specified sources (or default).\n"
     << "                         Requires --blockchain. Optionally uses --source.\n"
@@ -48,8 +48,7 @@ void print_help() {
     << "      --run-tasks          Run continuous background arbitrage tasks.\n"
     << "\nCommon Options:\n"
     << "      --blockchain <name>  Specify the target blockchain name or network ID.\n"
-    << "                         Required by most commands.\n"
-    << "      --source <url/name>  Specify data source for discovery (URL or keyword).\n"
+    << "  -s, --source <url/name>  Specify source (URL or keyword like 'chainlist', 'defillama').\n"
     << "                         Can be used multiple times. Defaults to EIP155-1 list if omitted.\n"
     // --- Planned Options (add descriptions later) ---
     << "      --password <pass>    Password for encrypted operations (if any).\n"
@@ -95,7 +94,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             // Flags are processed in the next iteration
         } else if (arg == "--blockchain") {
             
-        } else if (arg == "--source") {
+        } else if (arg == "--source" || arg == "-h") {
             
         }
         
