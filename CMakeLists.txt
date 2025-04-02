@@ -40,7 +40,9 @@ add_executable(neozork3_cli
 src/main.cpp
 src/config_manager.cpp
 src/cli_parser.cpp
-src/connection_manager.cpp)
+src/connection_manager.cpp
+src/endpoint_discovery.cpp
+)
 
 # Specify the include path for the executable
 target_include_directories(neozork3_cli PUBLIC include)
