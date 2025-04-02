@@ -3,17 +3,14 @@
 
 #include <string>
 #include <vector>
-#include "config_manager.h" // Нужен доступ к типам конфига
+#include "config_manager.h" // acces to struct of config
 
-namespace neozork::cli_parser { // Используем snake_case
+namespace neozork::cli_parser {
 
-    // Функция парсинга аргументов.
-    // Принимает argc, argv и ссылку на загруженный конфиг
-    // (на случай, если обработчики команд захотят его использовать).
-    // Может бросить исключение при ошибке или завершить программу (для --help, --config-init).
+    // Receive argc, argv and link loaded and parsed config
     void parse_arguments(int argc, char* argv[], neozork::config_manager::struct_config& config);
 
-    // Выводит базовую справку
+    // help
     void print_help();
 
 } // namespace neozork::cli_parser
