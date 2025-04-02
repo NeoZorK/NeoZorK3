@@ -13,9 +13,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 
 FetchContent_Declare(
-  nlohmann_json
-  GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG        v3.11.3 # Use an up-to-date stable tag/commit
+nlohmann_json
+GIT_REPOSITORY https://github.com/nlohmann/json.git
+GIT_TAG        v3.11.3 # Use an up-to-date stable tag/commit
 )
 FetchContent_MakeAvailable(nlohmann_json)
 # nlohmann_json::nlohmann_json target is now available but not linked yet
@@ -24,9 +24,9 @@ FetchContent_MakeAvailable(nlohmann_json)
 # --- Executable ---
 # Build main.cpp into neozork3_cli
 add_executable(neozork3_cli
-                            src/main.cpp
-                            src/config_manager.cpp
-                            src/cli_parser.cpp)
+src/main.cpp
+src/config_manager.cpp
+src/cli_parser.cpp)
 
 # Specify the include path for the executable
 target_include_directories(neozork3_cli PUBLIC include)
@@ -39,7 +39,7 @@ target_include_directories(neozork3_cli PRIVATE ${nlohmann_json_SOURCE_DIR}/incl
 
 # Shared folders  (warnings)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # Configuration options $<CONFIG:...>

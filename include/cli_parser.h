@@ -7,11 +7,11 @@
 
 namespace neozork::cli_parser {
 
-    // Receive argc, argv and link loaded and parsed config
-    void parse_arguments(int argc, char* argv[], neozork::config_manager::struct_config& config);
+// Receive argc, argv and link loaded and parsed config
+void parse_arguments(int argc, char* argv[], neozork::config_manager::struct_config& config);
 
-    // help
-    void print_help();
+// help
+void print_help();
 
 } // namespace neozork::cli_parser
 

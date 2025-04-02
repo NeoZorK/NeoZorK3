@@ -31,25 +31,25 @@ int main(int argc, char* argv[]) {
         std::cerr << "ERROR during config check/creation: " << e.what() << std::endl;
         return 1;
     }
-
+    
     // 2. Load config
     struct_config current_config;
     try {
         current_config = load_config();
         std::cout << "Configuration loaded successfully." << std::endl;
-
+        
         //DEBUG std::cout << "Loaded " << current_config.blockchains.size() << " blockchains." << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "ERROR loading config: " << e.what() << std::endl;
         return 1;
     }
-
+    
     // 3. Parse arguments
     try {
-       parse_arguments(argc, argv, current_config);
-
-       std::cout << "NeoZorK3 setup complete. Starting main logic (placeholder)..." << std::endl;
-
+        parse_arguments(argc, argv, current_config);
+        
+        std::cout << "NeoZorK3 setup complete. Starting main logic (placeholder)..." << std::endl;
+        
     } catch (const std::exception& e) {
         std::cerr << "ERROR processing arguments: " << e.what() << std::endl;
         return 1;
@@ -57,22 +57,22 @@ int main(int argc, char* argv[]) {
         std::cerr << "Unknown runtime error." << std::endl;
         return 1;
     }
-
+    
     // 4. TODO: Main logic
     //
-
+    
     std::cout << "NeoZorK3 finished." << std::endl;
     
-
+    
     
     // Timer App End
     auto end_time = std::chrono::high_resolution_clock::now();
-
+    
     // Execution time
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-
-      std::cout << "Total execution time: " << duration << " ms" << std::endl;
-
+    
+    std::cout << "Total execution time: " << duration << " ms" << std::endl;
+    
     return 0;
 }
 
