@@ -10,11 +10,17 @@
 #include "endpoint_discovery.h"
 #include "main.h"
 
+// Define program version
+const std::string PROGRAM_VERSION = "v0.1.6"; // Update version as needed
+
 // MAIN FUNCTION
 int main(int argc, char* argv[]) {
     
     // Timer App Start
     auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Print program version
+    std::cout << "NeoZorK3 " << PROGRAM_VERSION << std::endl;
     
     
     // Using namespaces for brevity within main
