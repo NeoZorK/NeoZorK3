@@ -103,7 +103,7 @@ void from_json(const nlohmann::json& j, struct_dex_info& p);
 void to_json(nlohmann::json& j, const struct_blockchain_info& p);
 void from_json(const nlohmann::json& j, struct_blockchain_info& p);
 
-// --- Объявления Основных Функций Модуля ---
+// --- Main functions ---
 
 std::filesystem::path get_config_path();
 struct_config load_config();
@@ -111,9 +111,9 @@ void save_config(const struct_config& config);
 bool ensure_config_exists();
 void initialize_config();
 
-// --- Объявления Вспомогательных Функций (Хелперов) ---
+// --- Helpers ---
 
-// --- Поиск ---
+// --- Search ---
 std::optional<std::reference_wrapper<struct_blockchain_info>> find_blockchain(
                                                                               struct_config& config_ref, const std::string& name_or_id_str
                                                                               );
@@ -142,14 +142,14 @@ std::optional<std::reference_wrapper<const struct_pool_info>> find_pool(
                                                                         const struct_blockchain_info& bc_info_ref, const std::string& pool_id_str
                                                                         );
 
-// --- Добавление (с проверкой дубликатов) ---
-// Возвращают true, если элемент был реально добавлен (не дубликат)
+// --- Add (with dublicate check) ---
+// Returns true, if new element
 bool add_blockchain(struct_config& config_ref, const struct_blockchain_info& new_blockchain);
 bool add_endpoint(struct_blockchain_info& bc_info_ref, const struct_endpoint& new_endpoint);
 bool add_dex(struct_blockchain_info& bc_info_ref, const struct_dex_info& new_dex);
 bool add_pool(struct_blockchain_info& bc_info_ref, const struct_pool_info& new_pool);
 
-// --- Обновление данных ---
+// --- Update data ---
 bool update_endpoint_status(
                             struct_endpoint& endpoint_ref,
                             const std::string& connection_type_str, // "https", "wss", etc.
@@ -166,11 +166,11 @@ bool update_blockchain_block_speed(
                                    double speed_ms
                                    );
 
-// --- Получение данных ---
-// Получить список активных эндпоинтов для блокчейна (предпочитая заданный тип)
+// --- Getting data ---
+// Getting list of active endpoints for blockchain
 std::vector<std::reference_wrapper<const struct_endpoint>> get_active_endpoints(
                                                                                 const struct_blockchain_info& bc_info_ref,
-                                                                                const std::string& preferred_type = "https" // например, "wss" или "https"
+                                                                                const std::string& preferred_type = "https" // "wss", "https"
 );
 
 
