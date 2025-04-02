@@ -45,10 +45,10 @@ void to_json(json& j, const struct_endpoint_connection_status& p) {
 
 // For struct_endpoint
 void to_json(json& j, const struct_endpoint& p) {
-    j = json::object(); // Start with empty objects
-    j["url"] = p.url;
-    j["supported_types"] = p.supported_types;
-    j["status"] = p.status; // Using to_json for map<string, struct_endpoint_connection_status>
+    j = json::object();
+    j["connection_urls"] = p.connection_urls; // Сериализуем новую map
+    j["status"] = p.status;
+    if (p.required_api_key_placeholder.has_value()) j["required_api_key_placeholder"] = p.required_api_key_placeholder.value();
     if (p.rate_limits.has_value()) j["rate_limits"] = p.rate_limits.value();
     if (p.access_token.has_value()) j["access_token"] = p.access_token.value();
     if (p.parallel_query_allowance.has_value()) j["parallel_query_allowance"] = p.parallel_query_allowance.value();
@@ -100,31 +100,16 @@ void from_json(const json& j, struct_endpoint_connection_status& p) {
 
 // --- from_json для struct_endpoint ---
 void from_json(const json& j, struct_endpoint& p) {
-    j.at("url").get_to(p.url);
-    p.supported_types = j.value("supported_types", std::vector<std::string>{"http", "https", "ws", "wss", "ipc"});
+    // Используем value для map с дефолтом
+    p.connection_urls = j.value("connection_urls", std::map<std::string, std::string>{});
     p.status = j.value("status", std::map<std::string, struct_endpoint_connection_status>{});
     
-    // Optional fields
-    if (j.contains("rate_limits") && !j.at("rate_limits").is_null()) {
-        p.rate_limits = j.at("rate_limits").get<struct_rate_limits>();
-    } else {
-        p.rate_limits = std::nullopt;
-    }
-    if (j.contains("access_token") && !j.at("access_token").is_null()) {
-        p.access_token = j.at("access_token").get<std::string>();
-    } else {
-        p.access_token = std::nullopt;
-    }
-    if (j.contains("parallel_query_allowance") && !j.at("parallel_query_allowance").is_null()) {
-        p.parallel_query_allowance = j.at("parallel_query_allowance").get<int>();
-    } else {
-        p.parallel_query_allowance = std::nullopt;
-    }
-    if (j.contains("last_block_number") && !j.at("last_block_number").is_null()) {
-        p.last_block_number = j.at("last_block_number").get<long long>();
-    } else {
-        p.last_block_number = std::nullopt;
-    }
+    // Optional поля
+    if (j.contains("required_api_key_placeholder") && !j.at("required_api_key_placeholder").is_null()) p.required_api_key_placeholder = j.at("required_api_key_placeholder").get<std::string>(); else p.required_api_key_placeholder = std::nullopt;
+    if (j.contains("rate_limits") && !j.at("rate_limits").is_null()) p.rate_limits = j.at("rate_limits").get<struct_rate_limits>(); else p.rate_limits = std::nullopt;
+    if (j.contains("access_token") && !j.at("access_token").is_null()) p.access_token = j.at("access_token").get<std::string>(); else p.access_token = std::nullopt;
+    if (j.contains("parallel_query_allowance") && !j.at("parallel_query_allowance").is_null()) p.parallel_query_allowance = j.at("parallel_query_allowance").get<int>(); else p.parallel_query_allowance = std::nullopt;
+    if (j.contains("last_block_number") && !j.at("last_block_number").is_null()) p.last_block_number = j.at("last_block_number").get<long long>(); else p.last_block_number = std::nullopt;
 }
 
 // For struct_dex_info
@@ -176,49 +161,54 @@ void create_default_config(const std::filesystem::path& path) {
     std::cout << "Creating default configuration file at: " << path.string() << std::endl;
     struct_config default_config;
     
-    // --- Example 1: Fantom ---
+    // --- Пример 1: Fantom ---
     struct_blockchain_info fantom;
     fantom.name = "Fantom";
     fantom.network_id = 250;
     
-    struct_endpoint ftm_rpc1;
-    ftm_rpc1.url = "https://rpc.ftm.tools/";
-    ftm_rpc1.supported_types = {"https"};
+    struct_endpoint ftm_rpc1; // rpc.ftm.tools
+    ftm_rpc1.connection_urls["https"] = "https://rpc.ftm.tools/";
     
-    struct_endpoint ftm_rpc2;
-    ftm_rpc2.url = "https://fantom-mainnet.public.blastapi.io/";
-    ftm_rpc2.supported_types = {"https", "wss"};
-    ftm_rpc2.access_token.emplace("YOUR_BLASTAPI_TOKEN_HERE");
+    struct_endpoint ftm_rpc2; // Blast API
+    ftm_rpc2.connection_urls["https"] = "https://fantom-mainnet.public.blastapi.io/";
+    ftm_rpc2.connection_urls["wss"] = "wss://fantom-mainnet.public.blastapi.io/";
+    ftm_rpc2.access_token.emplace("YOUR_BLASTAPI_TOKEN_HERE"); // Placeholder
     
     fantom.endpoints.push_back(ftm_rpc1);
     fantom.endpoints.push_back(ftm_rpc2);
-    
     default_config.blockchains.push_back(fantom);
     
-    // --- Example 2: Avalanche ---
+    // --- Пример 2: Avalanche ---
     struct_blockchain_info avax;
     avax.name = "Avalanche";
-    avax.network_id = 43114; // C-Chain
+    avax.network_id = 43114;
     
     struct_endpoint avax_rpc1;
-    avax_rpc1.url = "https://api.avax.network/ext/bc/C/rpc";
-    avax_rpc1.supported_types = {"https"};
+    avax_rpc1.connection_urls["https"] = "https://api.avax.network/ext/bc/C/rpc";
     
     avax.endpoints.push_back(avax_rpc1);
     default_config.blockchains.push_back(avax);
     
-    // --- Save ---
+    // --- Пример 3: Ethereum (НОВОЕ) ---
+    struct_blockchain_info eth;
+    eth.name = "Ethereum";
+    eth.network_id = 1;
+    
+    struct_endpoint eth_rpc1; // Cloudflare
+    eth_rpc1.connection_urls["https"] = "https://cloudflare-eth.com/";
+    
+    eth.endpoints.push_back(eth_rpc1);
+    default_config.blockchains.push_back(eth);
+    
+    
+    // --- Сохранение (без изменений) ---
     try {
-        json j = default_config; // to JSON
+        json j = default_config;
         std::ofstream ofs(path);
-        if (!ofs.is_open()) {
-            throw std::runtime_error("Cannot open config file for writing: " + path.string());
-        }
+        if (!ofs.is_open()) throw std::runtime_error("Cannot open config file for writing: " + path.string());
         ofs << j.dump(4);
         ofs.close();
-        if (!ofs) {
-            throw std::runtime_error("Error writing to config file: " + path.string());
-        }
+        if (!ofs) throw std::runtime_error("Error writing to config file: " + path.string());
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to create default config: " + std::string(e.what()));
     }
@@ -353,25 +343,28 @@ std::optional<std::reference_wrapper<const struct_blockchain_info>> find_blockch
 }
 
 // Find an endpoint
-std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint(
-                                                                     struct_blockchain_info& bc_info_ref, const std::string& url_str)
+std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_urls(
+                                                                             struct_blockchain_info& bc_info_ref,
+                                                                             const std::map<std::string, std::string>& urls_to_find)
 {
+    if (urls_to_find.empty()) {
+        return std::nullopt;
+    }
     auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
-                           [&](const struct_endpoint& ep) { return ep.url == url_str; });
+                           [&](const struct_endpoint& existing_ep) {
+        for (const auto& [type, url_to_find] : urls_to_find) {
+            auto existing_it = existing_ep.connection_urls.find(type);
+            if (existing_it != existing_ep.connection_urls.end() && existing_it->second == url_to_find) {
+                return true; // Нашли совпадение по типу и URL
+            }
+        }
+        // Дополнительно можно сравнивать по хосту, если URL нет
+        // Например, извлечь хосты из всех URL в urls_to_find и existing_ep.connection_urls и сравнить
+        return false;
+    });
+    
     if (it != bc_info_ref.endpoints.end()) {
         return std::ref(*it);
-    }
-    return std::nullopt;
-}
-
-// Find an endpoint
-std::optional<std::reference_wrapper<const struct_endpoint>> find_endpoint(
-                                                                           const struct_blockchain_info& bc_info_ref, const std::string& url_str)
-{
-    auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
-                           [&](const struct_endpoint& ep) { return ep.url == url_str; });
-    if (it != bc_info_ref.endpoints.end()) {
-        return std::cref(*it);
     }
     return std::nullopt;
 }
@@ -435,16 +428,6 @@ bool add_blockchain(struct_config& config_ref, const struct_blockchain_info& new
     return true;
 }
 
-// Add a new endpoint
-bool add_endpoint(struct_blockchain_info& bc_info_ref, const struct_endpoint& new_endpoint) {
-    if (find_endpoint(bc_info_ref, new_endpoint.url)) {
-        // If needed print warning
-        // std::cerr << "Warning: Endpoint '" << new_endpoint.url << "' already exists for blockchain '" << bc_info_ref.name << "'. Skipping." << std::endl;
-        return false;
-    }
-    bc_info_ref.endpoints.push_back(new_endpoint);
-    return true;
-}
 
 // Add a new dex
 bool add_dex(struct_blockchain_info& bc_info_ref, const struct_dex_info& new_dex) {
@@ -531,5 +514,31 @@ std::vector<std::reference_wrapper<const struct_endpoint>> get_active_endpoints(
     return active_endpoints;
 }
 
+// Implementation for add_endpoint (Add this function)
+bool add_endpoint(struct_blockchain_info& bc_info_ref, const struct_endpoint& new_endpoint) {
+    if (new_endpoint.connection_urls.empty()) {
+         // Optional: Log a warning
+         // std::cerr << "Warning: Attempted to add an endpoint with no connection URLs." << std::endl;
+         return false; // Cannot add empty endpoint
+    }
+
+    // Check if an endpoint with *any* of the same URLs already exists
+    // This prevents adding the same RPC URL multiple times, even if discovered from different sources.
+    for (const auto& [type, url] : new_endpoint.connection_urls) {
+        for (const auto& existing_ep : bc_info_ref.endpoints) {
+            auto it = existing_ep.connection_urls.find(type);
+            if (it != existing_ep.connection_urls.end() && it->second == url) {
+                 // Found a duplicate URL/Type combination
+                 // Optional: Log duplicate detection
+                 // std::cout << "Debug: Duplicate endpoint URL found: " << url << " (Type: " << type << ")" << std::endl;
+                 return false; // Indicate duplicate, do not add
+            }
+        }
+    }
+
+    // No duplicates found based on URL/Type pairs, add the new endpoint structure
+    bc_info_ref.endpoints.push_back(new_endpoint);
+    return true; // Indicate success, new endpoint added
+}
 
 } // namespace neozork::config_manager

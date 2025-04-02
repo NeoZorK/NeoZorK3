@@ -34,10 +34,18 @@ struct struct_endpoint_connection_status {
 
 // Endpoint
 struct struct_endpoint {
-    std::string url;
-    // Connection types
-    std::vector<std::string> supported_types = {"http", "https", "ws", "wss", "ipc"};
+    // URL
+    // std::optional<std::string> provider_name;
+    
+    // Changed to map for multiple types
+    std::map<std::string, std::string> connection_urls; // key: "https", "wss", "ipc"; value: full URL
+    
+    // Status
     std::map<std::string, struct_endpoint_connection_status> status;
+    
+    // Placeholder for rate limits
+    std::optional<std::string> required_api_key_placeholder;
+    
     std::optional<struct_rate_limits> rate_limits;
     std::optional<std::string> access_token;
     std::optional<int> parallel_query_allowance;
@@ -112,6 +120,11 @@ bool ensure_config_exists();
 void initialize_config();
 
 // --- Helpers ---
+// Find blockchain by name or network_id
+std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_urls(
+                                                                             struct_blockchain_info& bc_info_ref,
+                                                                             const std::map<std::string, std::string>& urls_to_find
+                                                                             );
 
 // --- Search ---
 std::optional<std::reference_wrapper<struct_blockchain_info>> find_blockchain(
