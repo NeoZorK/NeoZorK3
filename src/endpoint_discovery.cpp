@@ -123,7 +123,7 @@ std::vector<std::string> parse_ethereum_lists_json(const std::string& content) {
     return urls;
 }
 
-// Parses JSON from chainlist.org/rpcs.json format with DETAILED loop logging
+// Parses JSON from chainlist.org/rpcs.json format with DETAILED loop logging and flush
 std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, int target_chain_id) {
     std::vector<std::string> urls;
     std::cout << LOG_PREFIX << "Attempting to parse content as Chainlist RPCs JSON for target chain ID: " << target_chain_id << "..." << std::endl;
@@ -148,50 +148,44 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
         for (const auto& item : j) {
             processed_count++;
             if (!item.is_object()) {
-                 // std::cerr << LOG_PREFIX << "WARNING: Skipping non-object item in Chainlist array (Index: " << processed_count -1 << ")" << std::endl;
                  continue; // Silently skip non-objects
             }
-            // Use .contains() for safety before accessing
             bool has_chain_id = item.contains("chainId");
             bool has_url = item.contains("url");
 
             if (!has_chain_id || !has_url) {
-                 // Silently skip items missing required fields
-                 continue;
+                 continue; // Silently skip items missing required fields
             }
 
             int current_chain_id = -999; // Default invalid value
             std::string current_url = "";
             try {
-                 // Use .value() which handles null/wrong type by returning default
                  current_chain_id = item.value("chainId", -1);
                  current_url = item.value("url", "");
 
                 // --- LOGGING FIRST N ITEMS UNCONDITIONALLY ---
                 if (processed_count <= MAX_ITEMS_TO_LOG) {
                      std::cout << LOG_PREFIX << "  Item " << std::setw(4) << processed_count
-                               << ": Extracted chainId=" << std::setw(5) << current_chain_id // Use setw for alignment
-                               << ", url=" << current_url << std::endl;
+                               << ": Extracted chainId=" << std::setw(5) << current_chain_id
+                               << ", url=" << current_url << std::endl << std::flush; // Added flush
                  }
                  // --- END UNCONDITIONAL LOGGING ---
 
 
-                // Determine if we should log this item (if it matches target ID)
                  bool log_this_item = (current_chain_id == target_chain_id);
 
                  // Log matching items even if they are past the initial MAX_ITEMS_TO_LOG
                  if (log_this_item && processed_count > MAX_ITEMS_TO_LOG) {
                      std::cout << LOG_PREFIX << "  Item " << std::setw(4) << processed_count
                                << ": Extracted chainId=" << current_chain_id
-                               << ", url=" << current_url << std::endl;
+                               << ", url=" << current_url << std::endl << std::flush; // Added flush
                  }
 
                 // --- Check for match and add URL ---
                 if (current_chain_id == target_chain_id && !current_url.empty()) {
-                    // Exclude URLs containing placeholders
                     if (current_url.find("${") == std::string::npos) {
-                         if (log_this_item) { // Log only if we decided to log this item
-                            std::cout << LOG_PREFIX << "    MATCH FOUND! Adding URL." << std::endl;
+                         if (log_this_item) {
+                            std::cout << LOG_PREFIX << "    MATCH FOUND! Adding URL." << std::endl; // Flush not strictly needed here, but harmless
                          }
                         urls.push_back(current_url);
                         found_count++;
@@ -200,18 +194,15 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
                               std::cout << LOG_PREFIX << "    MATCH SKIPPED (URL contains placeholder)." << std::endl;
                          }
                     }
-                } else if (current_chain_id == target_chain_id && current_url.empty()) { // Handle case where ID matches but URL is empty
+                } else if (current_chain_id == target_chain_id && current_url.empty()) {
                      if (log_this_item) {
                          std::cerr << LOG_PREFIX << "    MATCH WARNING! chainId=" << current_chain_id << " matches target, but URL is empty. Skipping." << std::endl;
                      }
                 }
-                // else: ID doesn't match, normal skip
 
             } catch (const json::type_error& te) {
-                 // This might happen if chainId or url exist but are not int/string respectively
                  std::cerr << LOG_PREFIX << "WARNING: Type error processing Chainlist entry " << processed_count << ": " << te.what() << " - Entry: " << item.dump(2) << std::endl;
             } catch (const std::exception& e) {
-                 // Catch any other unexpected errors during item processing
                  std::cerr << LOG_PREFIX << "ERROR: Unexpected exception processing Chainlist entry " << processed_count << ": " << e.what() << std::endl;
             }
         } // end for loop
@@ -225,7 +216,6 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
     }
     return urls;
 }
-
 
 // --- Main discovery function (Handles source selection and parsing) ---
 bool discover_endpoints(
