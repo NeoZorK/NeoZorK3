@@ -169,6 +169,7 @@ bool discover_endpoints(
         }
 
         if (!neozork::config_manager::add_blockchain(config, new_bc)) {
+            // This should not happen if find_blockchain failed, but check anyway
             throw std::runtime_error("Failed to add new blockchain '" + blockchain_name_or_id + "' to config.");
         }
         // Find the newly added blockchain again to get the reference
@@ -195,7 +196,7 @@ bool discover_endpoints(
         bool is_json_source = false;
         bool is_chainlist_source = false;
 
-        if (source == "chainlist") {
+        if (source == "chainlist") { // Check for 'chainlist' keyword
             url_to_download = "https://chainlist.org/rpcs.json";
             is_json_source = true;
             is_chainlist_source = true;
@@ -203,7 +204,9 @@ bool discover_endpoints(
             // Assume other .json URLs follow ethereum-lists format for now
             // TODO: Add more specific checks if other JSON formats are expected
             is_json_source = true;
+            // Ensure url_to_download is already set to source here
         }
+        // url_to_download remains 'source' if it's a direct URL (json or text)
 
         // --- Download content if source is a URL ---
         if (url_to_download.rfind("https://", 0) == 0 || url_to_download.rfind("http://", 0) == 0) {
@@ -247,8 +250,9 @@ bool discover_endpoints(
         // 3. Process parsed URLs: clean, determine type/placeholder, add/update config
         for (const auto& raw_url : raw_urls) {
             // Apply cleaning (trim whitespace first)
-            // Note: JSON parser usually handles quotes, simple list parser does it too now.
             std::string cleaned_url = trim_string(raw_url);
+            // Trim quotes just in case, although JSON parser shouldn't include them
+            cleaned_url = trim_quotes(cleaned_url);
 
             if (cleaned_url.empty()) {
                 continue; // Skip empty lines

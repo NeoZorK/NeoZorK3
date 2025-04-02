@@ -94,7 +94,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             // Flags are processed in the next iteration
         } else if (arg == "--blockchain") {
             
-        } else if (arg == "--source" || arg == "-h") {
+        } else if (arg == "--source") {
             
         }
         
