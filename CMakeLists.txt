@@ -12,6 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # --- Dependencies ---
 include(FetchContent)
 
+# 1. nlohmann_json
 FetchContent_Declare(
 nlohmann_json
 GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -20,20 +21,42 @@ GIT_TAG        v3.11.3 # Use an up-to-date stable tag/commit
 FetchContent_MakeAvailable(nlohmann_json)
 # nlohmann_json::nlohmann_json target is now available but not linked yet
 
+# 2. httplib
+FetchContent_Declare(
+cpp_httplib
+GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+GIT_TAG        v0.15.3 # Use an up-to-date stable tag/commit
+)
+FetchContent_MakeAvailable(cpp_httplib)
+
+# 3. OpenSSL (support HTTPS in cpp-httplib)
+# Searching installed library in system OpenSSL
+# (Example, libssl-dev in Debian/Ubuntu, openssl-devel in Fedora/CentOS, openssl in Homebrew for macOS)
+find_package(OpenSSL REQUIRED)
 
 # --- Executable ---
 # Build main.cpp into neozork3_cli
 add_executable(neozork3_cli
 src/main.cpp
 src/config_manager.cpp
-src/cli_parser.cpp)
+src/cli_parser.cpp
+src/connection_manager.cpp)
 
 # Specify the include path for the executable
 target_include_directories(neozork3_cli PUBLIC include)
 
 # ADD PATH to headers nlohmann_json для neozork3_cli
-target_include_directories(neozork3_cli PRIVATE ${nlohmann_json_SOURCE_DIR}/include)
+target_include_directories(neozork3_cli PRIVATE
+${nlohmann_json_SOURCE_DIR}/include
+${cpp_httplib_SOURCE_DIR}
+)
 
+# Link OpenSSL
+# nlohmann_json and cpp_httplib - header-only, no need to link
+target_link_libraries(neozork3_cli PRIVATE
+OpenSSL::SSL
+OpenSSL::Crypto
+)
 
 # --- Compile/Link Options ---
 
