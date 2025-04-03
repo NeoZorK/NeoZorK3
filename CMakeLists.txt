@@ -42,6 +42,7 @@ src/config_manager.cpp
 src/cli_parser.cpp
 src/connection_manager.cpp
 src/endpoint_discovery.cpp
+src/endpoint_scanner.cpp
 )
 
 # Specify the include path for the executable
