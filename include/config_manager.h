@@ -120,6 +120,33 @@ bool ensure_config_exists();
 void initialize_config();
 
 // --- Helpers ---
+
+// --- Find Endpoint Functions ---
+
+/**
+ * @brief Finds an endpoint within a blockchain config by matching *any* of its configured URLs.
+ * Searches through the endpoint's connection_urls map.
+ * @param bc_info_ref Reference to the blockchain structure to search within.
+ * @param url_str The URL string to search for.
+ * @return Optional reference wrapper to the found endpoint struct (mutable).
+ */
+std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_any_url(
+                                                                                struct_blockchain_info& bc_info_ref,
+                                                                                const std::string& url_str
+                                                                                );
+
+/**
+ * @brief Finds an endpoint within a blockchain config by matching *any* of its configured URLs (const version).
+ * @param bc_info_ref Const reference to the blockchain structure to search within.
+ * @param url_str The URL string to search for.
+ * @return Optional const reference wrapper to the found endpoint struct.
+ */
+std::optional<std::reference_wrapper<const struct_endpoint>> find_endpoint_by_any_url(
+                                                                                      const struct_blockchain_info& bc_info_ref,
+                                                                                      const std::string& url_str
+                                                                                      );
+
+
 // Find blockchain by name or network_id
 std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_urls(
                                                                              struct_blockchain_info& bc_info_ref,
