@@ -161,7 +161,7 @@ void create_default_config(const std::filesystem::path& path) {
     std::cout << "Creating default configuration file at: " << path.string() << std::endl;
     struct_config default_config;
     
-    // --- Пример 1: Fantom ---
+    // --- Example 1: Fantom ---
     struct_blockchain_info fantom;
     fantom.name = "Fantom";
     fantom.network_id = 250;
@@ -178,7 +178,7 @@ void create_default_config(const std::filesystem::path& path) {
     fantom.endpoints.push_back(ftm_rpc2);
     default_config.blockchains.push_back(fantom);
     
-    // --- Пример 2: Avalanche ---
+    // --- Example 2: Avalanche ---
     struct_blockchain_info avax;
     avax.name = "Avalanche";
     avax.network_id = 43114;
@@ -189,7 +189,7 @@ void create_default_config(const std::filesystem::path& path) {
     avax.endpoints.push_back(avax_rpc1);
     default_config.blockchains.push_back(avax);
     
-    // --- Пример 3: Ethereum (НОВОЕ) ---
+    // --- Example 3: Ethereum ---
     struct_blockchain_info eth;
     eth.name = "Ethereum";
     eth.network_id = 1;
@@ -201,7 +201,7 @@ void create_default_config(const std::filesystem::path& path) {
     default_config.blockchains.push_back(eth);
     
     
-    // --- Сохранение (без изменений) ---
+    // --- Example 4: Binance Smart Chain ---
     try {
         json j = default_config;
         std::ofstream ofs(path);
@@ -283,6 +283,49 @@ void save_config(const struct_config& config) {
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to save config (" + path.string() + "): " + std::string(e.what()));
     }
+}
+
+// Mutable version
+std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_any_url(
+    struct_blockchain_info& bc_info_ref,
+    const std::string& url_str)
+{
+    auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
+                           [&](const struct_endpoint& ep) {
+        // Check if any URL in the map matches url_str
+        for (const auto& pair : ep.connection_urls) {
+            if (pair.second == url_str) {
+                return true; // Found a match
+            }
+        }
+        return false; // No match in this endpoint's URLs
+    });
+
+    if (it != bc_info_ref.endpoints.end()) {
+        return std::ref(*it); // Return reference to the found endpoint
+    }
+    return std::nullopt; // Not found
+}
+
+// Const version
+std::optional<std::reference_wrapper<const struct_endpoint>> find_endpoint_by_any_url(
+    const struct_blockchain_info& bc_info_ref,
+    const std::string& url_str)
+{
+     auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
+                           [&](const struct_endpoint& ep) {
+        for (const auto& pair : ep.connection_urls) {
+            if (pair.second == url_str) {
+                return true;
+            }
+        }
+        return false;
+    });
+
+    if (it != bc_info_ref.endpoints.end()) {
+        return std::cref(*it); // Return const reference
+    }
+    return std::nullopt;
 }
 
 // Find a blockchain by name or ID
@@ -447,15 +490,19 @@ bool add_pool(struct_blockchain_info& bc_info_ref, const struct_pool_info& new_p
     return true;
 }
 
-// Update endpoint status
+// Implementation for update_endpoint_status (Already correct, uses map operator[])
 bool update_endpoint_status(
                             struct_endpoint& endpoint_ref,
                             const std::string& connection_type_str,
                             const struct_endpoint_connection_status& new_status)
 {
+    // Using map's operator[] conveniently inserts or updates the element.
     endpoint_ref.status[connection_type_str] = new_status;
+    // Consider adding validation for connection_type_str if needed,
+    // but allowing any string might be flexible.
     return true;
 }
+
 
 // Update endpoint block number
 bool update_endpoint_block_number(
