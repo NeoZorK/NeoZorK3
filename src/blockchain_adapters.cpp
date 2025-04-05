@@ -17,7 +17,7 @@ using json = nlohmann::json;
 
 namespace neozork::blockchain_adapters {
 
-// --- Helper function to get latest block number ---
+// --- Helper function get_latest_block_number (без изменений) ---
 std::optional<long long> get_latest_block_number(const std::string& endpoint_url) {
     std::cout << "      [Adapter] Fetching latest block number from: " << endpoint_url << std::endl;
     std::string method = "eth_blockNumber";
@@ -30,9 +30,7 @@ std::optional<long long> get_latest_block_number(const std::string& endpoint_url
             try {
                 json response_json = json::parse(*result.body);
                 if (response_json.contains("result") && !response_json.contains("error")) {
-                    // Result is typically a hex string like "0x..."
                     std::string hex_block_num = response_json["result"].get<std::string>();
-                    // Convert hex string (with "0x" prefix) to long long
                     return std::stoll(hex_block_num, nullptr, 16);
                 } else if (response_json.contains("error")) {
                     std::cerr << "      [Adapter] RPC Error from " << endpoint_url << ": " << response_json["error"].dump() << std::endl;
@@ -53,162 +51,171 @@ std::optional<long long> get_latest_block_number(const std::string& endpoint_url
             << " (HTTP Status: " << (result.status_code.has_value() ? std::to_string(*result.status_code) : "N/A")
             << (result.error_message ? ", Error: " + *result.error_message : "") << ")" << std::endl;
         }
-    } catch (const std::exception& e) { // Catch potential errors from send_json_rpc_request itself (e.g., URL parsing)
+    } catch (const std::exception& e) {
         std::cerr << "      [Adapter] Exception during get_latest_block_number request to " << endpoint_url << ": " << e.what() << std::endl;
     }
     return std::nullopt; // Return empty optional on any failure
 }
 
 
-// --- Implementation for measure_block_speed ---
+// --- Implementation for measure_block_speed (Обновленная) ---
 std::optional<double> measure_block_speed(
                                           neozork::config_manager::struct_config& config,
                                           const std::string& blockchain_name_or_id)
 {
+    auto overall_start_time = std::chrono::high_resolution_clock::now(); // Засекаем общее время начала
     std::cout << "[Adapter] Measuring block speed for blockchain: '" << blockchain_name_or_id << "'" << std::endl;
     
     // 1. Find the blockchain
     auto bc_info_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
     if (!bc_info_ref_opt) {
+        // Critical error
         throw std::runtime_error("Adapter Error: Blockchain '" + blockchain_name_or_id + "' not found in configuration.");
     }
     neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get();
     
-    // 2. Find a suitable active endpoint (prefer https)
-    std::string active_endpoint_url;
-    // Use get_active_endpoints to find suitable ones, then pick the first https if possible
-    auto active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "https"); // Prioritize https
-    
+    // 2. Get the list of potentially active endpoints (prioritize https)
+    auto active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "https");
     if (active_endpoints.empty()) {
-        // Try finding active endpoints of *any* type if https failed
-        active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "any"); // Fallback
+        std::cout << "[Adapter] No active HTTPS endpoints found. Checking for other active types..." << std::endl;
+        active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "any");
     }
     
     if (active_endpoints.empty()) {
-        throw std::runtime_error("Adapter Error: No active endpoints found for blockchain '" + bc_info.name + "' to measure block speed.");
-    }
-    
-    // Select the first active endpoint found. Check if it has an https URL first.
-    const auto& chosen_endpoint_ref = active_endpoints[0].get();
-    auto https_it = chosen_endpoint_ref.connection_urls.find("https");
-    if (https_it != chosen_endpoint_ref.connection_urls.end()) {
-        active_endpoint_url = https_it->second;
-        std::cout << "[Adapter] Using active HTTPS endpoint: " << active_endpoint_url << std::endl;
-    } else {
-        // Fallback: use the first URL available for the active endpoint (might not be https!)
-        // This might fail if get_latest_block_number only supports https currently.
-        if (chosen_endpoint_ref.connection_urls.empty()) {
-            throw std::runtime_error("Adapter Error: Chosen active endpoint has no URLs listed.");
-        }
-        active_endpoint_url = chosen_endpoint_ref.connection_urls.begin()->second;
-        std::string chosen_type = chosen_endpoint_ref.connection_urls.begin()->first;
-        std::cerr << "[Adapter] Warning: No active HTTPS endpoint found. Using first available active endpoint type '"
-        << chosen_type << "': " << active_endpoint_url
-        << ". Measurement might fail if type is not HTTPS." << std::endl;
-        // Need to enhance get_latest_block_number to handle other types later.
-        if (chosen_type != "https") {
-            std::cerr << "[Adapter] Error: Current implementation only supports HTTPS for block number fetching." << std::endl;
-            return std::nullopt; // Cannot proceed yet
-        }
-    }
-    
-    
-    // 3. Fetch block numbers multiple times
-    const int num_samples = 6; // Get N samples to calculate N-1 intervals
-    const std::chrono::seconds delay_between_samples(1); // Check every second
-    std::vector<std::pair<std::chrono::system_clock::time_point, long long>> block_samples;
-    
-    std::cout << "[Adapter] Gathering block number samples..." << std::endl;
-    long long last_block = -1;
-    for (int i = 0; i < num_samples; ++i) {
-        auto fetch_time = std::chrono::system_clock::now();
-        std::optional<long long> current_block_opt = get_latest_block_number(active_endpoint_url);
+        std::cerr << "[Adapter] Error: No active endpoints found for blockchain '" << bc_info.name << "' to measure block speed." << std::endl;
         
-        if (current_block_opt) {
-            long long current_block = *current_block_opt;
-            std::cout << "  Sample " << (i + 1) << "/" << num_samples << ": Block " << current_block << std::endl;
-            // Only add sample if block number actually changed or it's the first sample
-            if (current_block > last_block || last_block == -1) {
-                block_samples.push_back({fetch_time, current_block});
-                last_block = current_block;
-            } else {
-                std::cout << "  (Block number unchanged, skipping sample for interval calculation)" << std::endl;
-            }
-        } else {
-            std::cerr << "[Adapter] Warning: Failed to fetch block number sample " << (i + 1) << ". Skipping." << std::endl;
-            // Continue trying for next samples
-        }
-        
-        // Wait before next sample, unless it's the last one
-        if (i < num_samples - 1) {
-            std::this_thread::sleep_for(delay_between_samples);
-        }
-    }
-    
-    // 4. Calculate average block time from valid intervals
-    if (block_samples.size() < 2) {
-        std::cerr << "[Adapter] Error: Not enough valid block samples gathered (< 2) to calculate block time." << std::endl;
+        auto overall_end_time = std::chrono::high_resolution_clock::now();
+        auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
+        std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
         return std::nullopt;
     }
     
-    std::vector<double> block_time_intervals_ms;
-    long long total_blocks_diff = 0;
-    for (size_t i = 1; i < block_samples.size(); ++i) {
-        long long block_diff = block_samples[i].second - block_samples[i-1].second;
-        // Ensure block difference is positive (sanity check)
-        if (block_diff <= 0) {
-            std::cerr << "[Adapter] Warning: Non-positive block difference observed (" << block_diff << "). Skipping interval." << std::endl;
+    std::cout << "[Adapter] Found " << active_endpoints.size() << " potentially suitable active endpoint(s). Attempting measurement..." << std::endl;
+    
+    // 3. Iterate through active endpoints and attempt measurement
+    for (size_t idx = 0; idx < active_endpoints.size(); ++idx) {
+        const auto& endpoint_ref = active_endpoints[idx].get();
+        std::string endpoint_url_to_use;
+        std::string endpoint_type_to_use;
+        
+        // --- Find a suitable URL (prioritize https, check if supported by get_latest_block_number) ---
+        auto https_it = endpoint_ref.connection_urls.find("https");
+        if (https_it != endpoint_ref.connection_urls.end()) {
+            endpoint_url_to_use = https_it->second;
+            endpoint_type_to_use = "https";
+        } else {
+            std::cerr << "[Adapter] Skipping endpoint " << (idx + 1) << "/" << active_endpoints.size()
+            << " (no HTTPS URL found, other types not supported yet for measurement)." << std::endl;
             continue;
         }
         
-        auto time_diff = block_samples[i].first - block_samples[i-1].first;
-        // Convert time difference to milliseconds
-        double time_diff_ms = std::chrono::duration_cast<std::chrono::microseconds>(time_diff).count() / 1000.0;
+        std::cout << "[Adapter] Attempting measurement using endpoint " << (idx + 1) << "/" << active_endpoints.size()
+        << " (Type: " << endpoint_type_to_use << ", URL: " << endpoint_url_to_use << ")" << std::endl;
         
-        if (time_diff_ms > 0) {
-            // Calculate time per block for this interval
-            double ms_per_block = time_diff_ms / static_cast<double>(block_diff);
-            block_time_intervals_ms.push_back(ms_per_block);
-            total_blocks_diff += block_diff;
-            std::cout << "  Interval " << i << ": " << block_diff << " blocks in " << time_diff_ms << " ms (" << ms_per_block << " ms/block)" << std::endl;
-        } else {
-            std::cerr << "[Adapter] Warning: Zero or negative time difference observed. Skipping interval." << std::endl;
+        
+        // --- Perform Sampling for the current endpoint ---
+        const int num_samples = 11;
+        const std::chrono::seconds delay_between_samples(1);
+        std::vector<std::pair<std::chrono::system_clock::time_point, long long>> block_samples;
+        long long last_block = -1;
+        bool sample_fetch_failed = false;
+        
+        std::cout << "  [Adapter] Gathering " << num_samples << " block number samples..." << std::endl;
+        for (int i = 0; i < num_samples; ++i) {
+            auto fetch_time = std::chrono::system_clock::now();
+            std::optional<long long> current_block_opt = get_latest_block_number(endpoint_url_to_use);
+            
+            if (current_block_opt) {
+                long long current_block = *current_block_opt;
+                std::cout << "    Sample " << std::setw(2) << (i + 1) << "/" << num_samples << ": Block " << current_block << std::endl;
+                if (current_block > last_block || last_block == -1) {
+                    block_samples.push_back({fetch_time, current_block});
+                    last_block = current_block;
+                } else {
+                    std::cout << "    (Block number unchanged)" << std::endl;
+                }
+            } else {
+                std::cerr << "    [Adapter] Warning: Failed to fetch block number sample " << (i + 1) << " using " << endpoint_url_to_use << ". Stopping sampling for this endpoint." << std::endl;
+                sample_fetch_failed = true;
+                break;
+            }
+            
+            if (i < num_samples - 1) {
+                std::this_thread::sleep_for(delay_between_samples);
+            }
         }
-    }
-    
-    if (block_time_intervals_ms.empty()) {
-        std::cerr << "[Adapter] Error: No valid time intervals calculated." << std::endl;
-        return std::nullopt;
-    }
-    
-    // Calculate the average time per block across all valid intervals
-    double total_time_sum_ms = std::accumulate(block_time_intervals_ms.begin(), block_time_intervals_ms.end(), 0.0);
-    // Simple average:
-    // double average_block_time_ms = total_time_sum_ms / block_time_intervals_ms.size();
-    
-    // Weighted average (more accurate if intervals cover different numbers of blocks):
-    // Calculate total time covered by valid intervals
-    double total_time_valid_intervals_ms = 0;
-    for (size_t i = 1; i < block_samples.size(); ++i) {
-        if (block_samples[i].second - block_samples[i-1].second > 0) {
+        
+        // --- Check if enough samples were gathered ---
+        if (sample_fetch_failed) {
+            std::cerr << "[Adapter] Failed to gather sufficient samples using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
+            continue;
+        }
+        
+        // --- Calculate block time if enough samples ---
+        if (block_samples.size() < 2) {
+            std::cerr << "[Adapter] Error: Not enough valid block samples gathered (< 2) using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
+            continue;
+        }
+        
+        std::vector<double> block_time_intervals_ms;
+        long long total_blocks_diff = 0;
+        for (size_t i = 1; i < block_samples.size(); ++i) {
+            long long block_diff = block_samples[i].second - block_samples[i-1].second;
+            if (block_diff <= 0) continue;
+            
             auto time_diff = block_samples[i].first - block_samples[i-1].first;
-            total_time_valid_intervals_ms += std::chrono::duration_cast<std::chrono::microseconds>(time_diff).count() / 1000.0;
+            double time_diff_ms = std::chrono::duration_cast<std::chrono::microseconds>(time_diff).count() / 1000.0;
+            
+            if (time_diff_ms > 0) {
+                double ms_per_block = time_diff_ms / static_cast<double>(block_diff);
+                block_time_intervals_ms.push_back(ms_per_block);
+                total_blocks_diff += block_diff;
+                // std::cout << "    Interval " << i << ": " << block_diff << " blocks in " << time_diff_ms << " ms (" << ms_per_block << " ms/block)" << std::endl; // (Debug log)
+            }
         }
-    }
-    double average_block_time_ms = total_time_valid_intervals_ms / static_cast<double>(total_blocks_diff);
+        
+        // --- Check if enough intervals were calculated ---
+        if (block_time_intervals_ms.empty() || total_blocks_diff == 0) {
+            std::cerr << "[Adapter] Error: No valid time intervals calculated using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
+            continue;
+        }
+        
+        // --- Calculate average block time ---
+        double total_time_valid_intervals_ms = 0;
+        for (size_t i = 1; i < block_samples.size(); ++i) {
+            if (block_samples[i].second - block_samples[i-1].second > 0) {
+                auto time_diff = block_samples[i].first - block_samples[i-1].first;
+                total_time_valid_intervals_ms += std::chrono::duration_cast<std::chrono::microseconds>(time_diff).count() / 1000.0;
+            }
+        }
+        double average_block_time_ms = total_time_valid_intervals_ms / static_cast<double>(total_blocks_diff);
+        
+        std::cout << "[Adapter] Measurement successful using " << endpoint_url_to_use << std::endl;
+        std::cout << "[Adapter] Calculated average block time: " << average_block_time_ms << " ms (" << block_time_intervals_ms.size() << " intervals, " << total_blocks_diff << " blocks total)" << std::endl;
+        
+        // --- Update config ---
+        if (neozork::config_manager::update_blockchain_block_speed(bc_info, average_block_time_ms)) {
+            std::cout << "[Adapter] Updated block speed in configuration." << std::endl;
+        }
+        
+        // --- Success: Exit loop with success ---
+        auto overall_end_time = std::chrono::high_resolution_clock::now();
+        auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
+        std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
+        
+        return average_block_time_ms;
+        
+    } // --- End of while loop ---
     
+    // --- Error: Exit loop with failure ---
+    std::cerr << "[Adapter] Error: Failed to measure block speed using all available active endpoints for blockchain '" << bc_info.name << "'." << std::endl;
     
-    std::cout << "[Adapter] Calculated average block time: " << average_block_time_ms << " ms" << std::endl;
+    // --- Cleanup and return nullopt ---
+    auto overall_end_time = std::chrono::high_resolution_clock::now();
+    auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
+    std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
     
-    // 5. Update config
-    if (neozork::config_manager::update_blockchain_block_speed(bc_info, average_block_time_ms)) {
-        std::cout << "[Adapter] Updated block speed in configuration." << std::endl;
-    } else {
-        // This shouldn't fail based on current implementation, but good to check
-        std::cerr << "[Adapter] Warning: Failed to update block speed in configuration object." << std::endl;
-    }
-    
-    return average_block_time_ms; // Return the calculated value
+    return std::nullopt;
 }
 
 
