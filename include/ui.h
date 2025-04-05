@@ -88,6 +88,9 @@ inline void print_value(long long value) {
 inline void print_value(double value, int precision = 2) {
     std::cout << colors::bright_white << std::fixed << std::setprecision(precision) << value << colors::reset;
 }
+inline void print_value(int value) {
+    std::cout << colors::bright_white << value << colors::reset;
+}
 
 // Function to print endpoint details (will be used by commands)
 // Forward declare config structs to avoid full include here? Or include config_manager.h

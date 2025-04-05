@@ -15,6 +15,7 @@
 #include "main.h"
 #include "version.h"
 #include "ui.h"
+#include "command_handlers.h"
 
 
 // MAIN FUNCTION
@@ -153,7 +154,8 @@ int main(int argc, char* argv[]) {
             {
                 std::cout << "Loading configuration..." << std::endl;
                 struct_config current_config = load_config();
-                handle_show_endpoint_info(current_config, params);
+                // --- Указать полное имя функции ---
+                neozork::command_handlers::handle_show_endpoint_info(current_config, params);
             }
                 break;
                 
