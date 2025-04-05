@@ -44,6 +44,7 @@ src/connection_manager.cpp
 src/endpoint_discovery.cpp
 src/endpoint_scanner.cpp
 src/blockchain_adapters.cpp
+src/ui.cpp
 )
 
 # Specify the include path for the executable

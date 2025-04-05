@@ -30,11 +30,12 @@ void print_help() {
     << "                             Optionally use --connection-type to scan only one type.\n"
     << "      --measure-block-speed  Measure average block time for a blockchain using an\n"
     << "                             active endpoint. Requires -b/--blockchain.\n"
+    << "      --show-endpoint-info <term>\n"
+    << "                             Show detailed info for endpoints whose URL contains <term>.\n"
+    << "                             Searches across all configured blockchains.\n"
     // --- Planned Commands ---
     << "      --show-active-endpoints\n" // Keep planned commands for context
-    << "                             List active endpoints for a blockchain.\n"
-    << "      --measure-block-speed\n"
-    << "                             Measure block speed for a blockchain.\n"
+    << "                               List active endpoints for a blockchain.\n"
     << "      --find-dexes             Discover DEXes on a blockchain.\n"
     << "      --find-pools             Discover pools for a DEX on a blockchain.\n"
     << "      --get-token-price        Get token price info.\n"
@@ -112,6 +113,13 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             check_multiple_commands(command_type::SCAN_SINGLE_ENDPOINT);
         }else if (arg == "--measure-block-speed") {
             check_multiple_commands(command_type::MEASURE_BLOCK_SPEED);
+        } else if (arg == "--show-endpoint-info") {
+            check_multiple_commands(command_type::SHOW_ENDPOINT_INFO);
+            if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
+                params.search_term = args[++i];
+            } else {
+                throw std::runtime_error("Missing value for argument: " + arg);
+            }
         }
         
         // TODO: Add other command flags here (like --show-active-endpoints etc.)
@@ -151,6 +159,17 @@ command_parameters parse_arguments(int argc, char* argv[]) {
                 throw std::runtime_error("Missing value for argument: " + arg);
             }
         }
+        
+        else if (params.type == command_type::SHOW_ENDPOINT_INFO) {
+                if (params.blockchain_name.has_value()) {
+                     std::cerr << "Warning: --blockchain argument ignored for --show-endpoint-info (searches all blockchains)." << std::endl;
+                }
+                 if (params.endpoint_url.has_value()) {
+                     std::cerr << "Warning: --endpoint argument ignored for --show-endpoint-info." << std::endl;
+                 }
+                 // other options
+            }
+        
         // TODO: Add other flags with arguments here (password, dex_id, etc.)
         
         // --- Unknown argument ---
