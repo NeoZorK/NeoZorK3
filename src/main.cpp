@@ -10,7 +10,7 @@
 #include "config_manager.h"
 #include "cli_parser.h"
 #include "endpoint_discovery.h"
-#include "endpoint_scanner.h"   // <-- Include the scanner header
+#include "endpoint_scanner.h"
 #include "main.h"
 #include "version.h"
 
@@ -29,12 +29,12 @@ int main(int argc, char* argv[]) {
     using namespace neozork::config_manager;
     using namespace neozork::cli_parser;
     using namespace neozork::endpoint_discovery;
-    using namespace neozork::endpoint_scanner; // <-- Add scanner namespace
+    using namespace neozork::endpoint_scanner;
     
     // 1. Ensure configuration file exists (create default if missing)
     try {
         if (!ensure_config_exists()) {
-            return 1; // Error should have been printed
+            return 1;
         }
         std::cout << "Configuration file exists or was created." << std::endl;
     } catch (const std::exception& e) {
@@ -48,63 +48,75 @@ int main(int argc, char* argv[]) {
         params = parse_arguments(argc, argv);
     } catch (const std::exception& e) {
         std::cerr << "ERROR parsing arguments: " << e.what() << std::endl;
-        print_help(); // Show help on parsing error
+        
+        // Print help if parsing failed
+        print_help();
         return 1;
     }
     
     // 3. Execute the requested command
     try {
         switch(params.type) {
+                
+                // --- Handle HELP ---
             case command_type::HELP:
                 print_help();
-                break; // Exit will happen after switch
+                break;
                 
+                // --- Handle CONFIG_INIT ---
             case command_type::CONFIG_INIT:
                 std::cout << "Initializing configuration..." << std::endl;
                 initialize_config();
                 std::cout << "Configuration file initialized successfully." << std::endl;
-                break; // Exit will happen after switch
+                break;
                 
+                // --- Handle DISCOVER_ENDPOINTS ---
             case command_type::DISCOVER_ENDPOINTS:
             {
                 std::cout << "Loading configuration for discovery..." << std::endl;
-                struct_config current_config = load_config(); // Load before modifying
+                struct_config current_config = load_config();
+                
                 // Ensure blockchain name is present (already checked by parser, but double check)
                 if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for discovery."); }
+                
+                // Start endpoint discovery
                 discover_endpoints(params.blockchain_name.value(), params.sources, current_config);
+                
                 // Config is saved inside discover_endpoints if changes were made
                 std::cout << "Endpoint discovery process finished." << std::endl;
             }
                 break;
                 
-                // --- NEW: Handle SCAN_ENDPOINTS ---
+                // --- Handle SCAN_ENDPOINTS ---
             case command_type::SCAN_ENDPOINTS:
             {
                 std::cout << "Loading configuration for scanning..." << std::endl;
                 struct_config current_config = load_config();
+                
                 // Ensure blockchain name is present
                 if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for scan."); }
                 
                 std::cout << "Starting endpoint scan..." << std::endl;
-                run_scan_endpoints(current_config, params.blockchain_name.value(), params.connection_type); // Pass optional connection type
+                run_scan_endpoints(current_config, params.blockchain_name.value(), params.connection_type);
                 
                 std::cout << "Scan finished. Saving configuration..." << std::endl;
-                save_config(current_config); // Save updated statuses
+                save_config(current_config);
                 std::cout << "Configuration saved." << std::endl;
             }
                 break;
                 
-                // --- NEW: Handle SCAN_SINGLE_ENDPOINT ---
+                // --- Handle SCAN_SINGLE_ENDPOINT ---
             case command_type::SCAN_SINGLE_ENDPOINT:
             {
                 std::cout << "Loading configuration for single endpoint scan..." << std::endl;
                 struct_config current_config = load_config();
+                
                 // Ensure blockchain name and endpoint URL are present
                 if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for single scan."); }
                 if (!params.endpoint_url) { throw std::runtime_error("Internal error: endpoint URL missing for single scan."); }
                 
                 std::cout << "Starting single endpoint scan..." << std::endl;
-                run_scan_single_endpoint(current_config, params.blockchain_name.value(), params.endpoint_url.value(), params.connection_type); // Pass optional connection type
+                run_scan_single_endpoint(current_config, params.blockchain_name.value(), params.endpoint_url.value(), params.connection_type);
                 
                 std::cout << "Scan finished. Saving configuration..." << std::endl;
                 save_config(current_config); // Save updated status
@@ -113,6 +125,7 @@ int main(int argc, char* argv[]) {
                 break;
                 
                 
+                // --- Handle NONE ---
             case command_type::NONE:
                 // If no command was specified, parser defaults to HELP now.
                 // If we change default action later, handle it here.
@@ -124,12 +137,11 @@ int main(int argc, char* argv[]) {
                 
             default:
                 std::cerr << "ERROR: Unhandled command type in main!" << std::endl;
-                print_help(); // Show help if command is known by enum but not handled
+                print_help();
                 return 1;
         }
     } catch (const std::exception& e) {
         std::cerr << "ERROR during command execution: " << e.what() << std::endl;
-        // Optionally print more details or stack trace in debug mode
         return 1;
     } catch (...) {
         std::cerr << "Unknown runtime error during command execution." << std::endl;
