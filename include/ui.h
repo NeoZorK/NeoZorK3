@@ -4,6 +4,7 @@
 
 #include <string>
 #include <iostream>
+#include <iomanip>
 
 namespace neozork::ui {
 
@@ -56,6 +57,7 @@ inline void print_url(const std::string& text) {
 inline void print_latency(const std::string& text) {
     std::cout << colors::red << text << colors::reset;
 }
+
 inline void print_latency(double value_ms) {
     std::cout << colors::red << std::fixed << std::setprecision(2) << value_ms << " ms" << colors::reset;
 }
