@@ -14,6 +14,18 @@
 namespace neozork::command_handlers {
 
 /**
+ * @brief Handles the '--show-block-speeds' command.
+ * Reads the configuration and displays a formatted table showing the
+ * measured block speed for each configured blockchain.
+ * @param config The loaded application configuration.
+ * @param params The parsed command line parameters (not used by this handler).
+ */
+void handle_show_block_speeds( // <-- Объявить
+    const neozork::config_manager::struct_config& config,
+    const neozork::cli_parser::command_parameters& params
+);
+
+/**
  * @brief Handles the '--show-endpoint-info <search_term>' command.
  * Loads the configuration, searches for endpoints where any URL contains the search term
  * across all blockchains, and prints detailed information using the UI module.

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>          // For std::runtime_error
+#include <sstream>
 
 namespace neozork::command_handlers {
 
@@ -58,6 +59,60 @@ void handle_show_endpoint_info(
     std::cout << std::endl;
 }
 
+// --- Handler for SHOW_BLOCK_SPEEDS ---
+void handle_show_block_speeds(
+                              const neozork::config_manager::struct_config& config,
+                              const neozork::cli_parser::command_parameters& params)
+{
+    (void)params;
+    
+    neozork::ui::print_label("\n--- Measured Blockchain Speeds ---\n");
+    
+    if (config.blockchains.empty()) {
+        neozork::ui::print_value("No blockchains configured.\n");
+        return;
+    }
+    
+    const int name_width = 20;
+    const int speed_width = 20;
+    
+    // --- Print Header ---
+    std::cout << std::left;
+    neozork::ui::print_label("Blockchain Name");
+    // Add padding
+    std::cout << std::string(name_width - std::string("Blockchain Name").length(), ' ');
+    
+    neozork::ui::print_label("Avg Block Speed");
+    std::cout << std::string(speed_width - std::string("Avg Block Speed").length(), ' ');
+    std::cout << std::endl;
+    
+    // Print separator
+    neozork::ui::print_label(std::string(name_width + speed_width, '-'));
+    std::cout << std::endl;
+    
+    
+    // --- Print Blockchains ---
+    for (const auto& bc_info : config.blockchains) {
+        // Blockchain Name
+        std::cout << neozork::ui::colors::bold_blue << std::left << std::setw(name_width) << bc_info.name << neozork::ui::colors::reset;
+        
+        // Speed
+        std::cout << std::right << std::setw(speed_width);
+        if (bc_info.block_speed_ms.has_value()) {
+            // Format the speed with 2 decimal places
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(2) << bc_info.block_speed_ms.value() << " ms";
+            
+            std::cout << neozork::ui::colors::red << ss.str() << neozork::ui::colors::reset;
+        } else {
+            std::cout << neozork::ui::colors::bright_black << "Not Measured" << neozork::ui::colors::reset;
+        }
+        std::cout << std::endl;
+    }
+    
+    neozork::ui::print_label(std::string(name_width + speed_width, '-')); 
+    std::cout << std::endl;
+}
 
 // --- Implementations for future command handlers ---
 

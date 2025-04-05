@@ -159,6 +159,14 @@ int main(int argc, char* argv[]) {
             }
                 break;
                 
+            case command_type::SHOW_BLOCK_SPEEDS:
+            {
+                std::cout << "Loading configuration..." << std::endl;
+                struct_config current_config = load_config();
+                neozork::command_handlers::handle_show_block_speeds(current_config, params);
+            }
+                break;
+                
                 // --- Handle NONE ---
             case command_type::NONE:
                 // If no command was specified, parser defaults to HELP now.

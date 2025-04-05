@@ -33,6 +33,8 @@ void print_help() {
     << "      --show-endpoint-info <term>\n"
     << "                             Show detailed info for endpoints whose URL contains <term>.\n"
     << "                             Searches across all configured blockchains.\n"
+    << "      --show-block-speeds    Display a table of measured average block speeds\n"
+    << "                             for all configured blockchains.\n"
     // --- Planned Commands ---
     << "      --show-active-endpoints\n" // Keep planned commands for context
     << "                               List active endpoints for a blockchain.\n"
@@ -121,6 +123,9 @@ command_parameters parse_arguments(int argc, char* argv[]) {
                 throw std::runtime_error("Missing value for argument: " + arg);
             }
         }
+        else if (arg == "--show-block-speeds") {
+            check_multiple_commands(command_type::SHOW_BLOCK_SPEEDS);
+        }
         
         // TODO: Add other command flags here (like --show-active-endpoints etc.)
         
@@ -161,14 +166,20 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
         
         else if (params.type == command_type::SHOW_ENDPOINT_INFO) {
-                if (params.blockchain_name.has_value()) {
-                     std::cerr << "Warning: --blockchain argument ignored for --show-endpoint-info (searches all blockchains)." << std::endl;
-                }
-                 if (params.endpoint_url.has_value()) {
-                     std::cerr << "Warning: --endpoint argument ignored for --show-endpoint-info." << std::endl;
-                 }
-                 // other options
+            if (params.blockchain_name.has_value()) {
+                std::cerr << "Warning: --blockchain argument ignored for --show-endpoint-info (searches all blockchains)." << std::endl;
             }
+            if (params.endpoint_url.has_value()) {
+                std::cerr << "Warning: --endpoint argument ignored for --show-endpoint-info." << std::endl;
+            }
+            // other options
+        }
+        
+        else if (params.type == command_type::SHOW_BLOCK_SPEEDS) {
+            if (params.blockchain_name.has_value() || params.search_term.has_value() /* и т.д. */) {
+                std::cerr << "Warning: Arguments like --blockchain, --search-term, etc. are ignored for --show-block-speeds." << std::endl;
+            }
+        }
         
         // TODO: Add other flags with arguments here (password, dex_id, etc.)
         
