@@ -17,7 +17,7 @@ enum class command_type {
     CONFIG_INIT,        // Initialize config
     DISCOVER_ENDPOINTS, // Run endpoint discovery
     SCAN_ENDPOINTS,     // Run scanning for all endpoints of a blockchain
-    SCAN_SINGLE_ENDPOINT // Run scanning for a specific endpoint URL
+    SCAN_SINGLE_ENDPOINT, // Run scanning for a specific endpoint URL
     MEASURE_BLOCK_SPEED  // Run block speed measurement
     // TODO: Add FIND_ARBITRAGE_ONCE, RUN_TASKS etc. later
 };

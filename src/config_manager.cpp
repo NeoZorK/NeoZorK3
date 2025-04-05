@@ -285,17 +285,6 @@ void save_config(const struct_config& config) {
     }
 }
 
-// --- Implementation for update_blockchain_block_speed ---
-bool update_blockchain_block_speed(
-                                   struct_blockchain_info& bc_info_ref,
-                                   double speed_ms)
-{
-    bc_info_ref.block_speed_ms = speed_ms;
-    // can be added
-    // if (speed_ms < 0) { return false; }
-    return true;
-}
-
 // Mutable version
 std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_any_url(
                                                                                 struct_blockchain_info& bc_info_ref,
