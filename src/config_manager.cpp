@@ -285,10 +285,21 @@ void save_config(const struct_config& config) {
     }
 }
 
+// --- Implementation for update_blockchain_block_speed ---
+bool update_blockchain_block_speed(
+                                   struct_blockchain_info& bc_info_ref,
+                                   double speed_ms)
+{
+    bc_info_ref.block_speed_ms = speed_ms;
+    // can be added
+    // if (speed_ms < 0) { return false; }
+    return true;
+}
+
 // Mutable version
 std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_any_url(
-    struct_blockchain_info& bc_info_ref,
-    const std::string& url_str)
+                                                                                struct_blockchain_info& bc_info_ref,
+                                                                                const std::string& url_str)
 {
     auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
                            [&](const struct_endpoint& ep) {
@@ -300,7 +311,7 @@ std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_any_url(
         }
         return false; // No match in this endpoint's URLs
     });
-
+    
     if (it != bc_info_ref.endpoints.end()) {
         return std::ref(*it); // Return reference to the found endpoint
     }
@@ -309,10 +320,10 @@ std::optional<std::reference_wrapper<struct_endpoint>> find_endpoint_by_any_url(
 
 // Const version
 std::optional<std::reference_wrapper<const struct_endpoint>> find_endpoint_by_any_url(
-    const struct_blockchain_info& bc_info_ref,
-    const std::string& url_str)
+                                                                                      const struct_blockchain_info& bc_info_ref,
+                                                                                      const std::string& url_str)
 {
-     auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
+    auto it = std::find_if(bc_info_ref.endpoints.begin(), bc_info_ref.endpoints.end(),
                            [&](const struct_endpoint& ep) {
         for (const auto& pair : ep.connection_urls) {
             if (pair.second == url_str) {
@@ -321,7 +332,7 @@ std::optional<std::reference_wrapper<const struct_endpoint>> find_endpoint_by_an
         }
         return false;
     });
-
+    
     if (it != bc_info_ref.endpoints.end()) {
         return std::cref(*it); // Return const reference
     }
@@ -564,25 +575,25 @@ std::vector<std::reference_wrapper<const struct_endpoint>> get_active_endpoints(
 // Implementation for add_endpoint (Add this function)
 bool add_endpoint(struct_blockchain_info& bc_info_ref, const struct_endpoint& new_endpoint) {
     if (new_endpoint.connection_urls.empty()) {
-         // Optional: Log a warning
-         // std::cerr << "Warning: Attempted to add an endpoint with no connection URLs." << std::endl;
-         return false; // Cannot add empty endpoint
+        // Optional: Log a warning
+        // std::cerr << "Warning: Attempted to add an endpoint with no connection URLs." << std::endl;
+        return false; // Cannot add empty endpoint
     }
-
+    
     // Check if an endpoint with *any* of the same URLs already exists
     // This prevents adding the same RPC URL multiple times, even if discovered from different sources.
     for (const auto& [type, url] : new_endpoint.connection_urls) {
         for (const auto& existing_ep : bc_info_ref.endpoints) {
             auto it = existing_ep.connection_urls.find(type);
             if (it != existing_ep.connection_urls.end() && it->second == url) {
-                 // Found a duplicate URL/Type combination
-                 // Optional: Log duplicate detection
-                 // std::cout << "Debug: Duplicate endpoint URL found: " << url << " (Type: " << type << ")" << std::endl;
-                 return false; // Indicate duplicate, do not add
+                // Found a duplicate URL/Type combination
+                // Optional: Log duplicate detection
+                // std::cout << "Debug: Duplicate endpoint URL found: " << url << " (Type: " << type << ")" << std::endl;
+                return false; // Indicate duplicate, do not add
             }
         }
     }
-
+    
     // No duplicates found based on URL/Type pairs, add the new endpoint structure
     bc_info_ref.endpoints.push_back(new_endpoint);
     return true; // Indicate success, new endpoint added
