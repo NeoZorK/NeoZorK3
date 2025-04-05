@@ -35,9 +35,10 @@ void print_help() {
     << "                             Searches across all configured blockchains.\n"
     << "      --show-block-speeds    Display a table of measured average block speeds\n"
     << "                             for all configured blockchains.\n"
+    << "      --show-active-endpoints\n"
+    << "                             Show active endpoints for a blockchain, sorted by latency.\n"
+    << "                             Requires -b/--blockchain. Optionally filter by -t/--connection-type.\n"
     // --- Planned Commands ---
-    << "      --show-active-endpoints\n" // Keep planned commands for context
-    << "                               List active endpoints for a blockchain.\n"
     << "      --find-dexes             Discover DEXes on a blockchain.\n"
     << "      --find-pools             Discover pools for a DEX on a blockchain.\n"
     << "      --get-token-price        Get token price info.\n"
@@ -126,6 +127,9 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         else if (arg == "--show-block-speeds") {
             check_multiple_commands(command_type::SHOW_BLOCK_SPEEDS);
         }
+        else if (arg == "--show-active-endpoints") {
+                 check_multiple_commands(command_type::SHOW_ACTIVE_ENDPOINTS);
+             }
         
         // TODO: Add other command flags here (like --show-active-endpoints etc.)
         
@@ -164,6 +168,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
                 throw std::runtime_error("Missing value for argument: " + arg);
             }
         }
+        
         
         else if (params.type == command_type::SHOW_ENDPOINT_INFO) {
             if (params.blockchain_name.has_value()) {
@@ -237,8 +242,8 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             std::cerr << "Warning: --source argument ignored for --scan-single-endpoint command." << std::endl;
         }
     }
-    // Add validation checks for other commands as they are implemented
-    
+
+    // Validation for MEASURE_BLOCK_SPEED
     else if (params.type == command_type::MEASURE_BLOCK_SPEED) {
         if (!params.blockchain_name.has_value()) {
             throw std::runtime_error("--blockchain <name|id> is required for --measure-block-speed");
@@ -255,6 +260,22 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
     }
     
+    // Validation for SHOW_ACTIVE_ENDPOINTS
+    else if (params.type == command_type::SHOW_ACTIVE_ENDPOINTS) {
+        if (!params.blockchain_name.has_value()) {
+            throw std::runtime_error("--blockchain <name|id> is required for --show-active-endpoints");
+        }
+        // Проверить на нерелевантные флаги
+        if (params.endpoint_url.has_value()) {
+             std::cerr << "Warning: --endpoint argument ignored for --show-active-endpoints." << std::endl;
+        }
+         if (!params.sources.empty()) {
+             std::cerr << "Warning: --source argument ignored for --show-active-endpoints." << std::endl;
+         }
+         if (params.search_term.has_value()) {
+              std::cerr << "Warning: --search-term argument ignored for --show-active-endpoints." << std::endl;
+         }
+    }
     
     // Default action if no command specified
     if (params.type == command_type::NONE) {

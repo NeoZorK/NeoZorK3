@@ -20,7 +20,8 @@ enum class command_type {
     SCAN_SINGLE_ENDPOINT, // Run scanning for a specific endpoint URL
     MEASURE_BLOCK_SPEED,  // Run block speed measurement
     SHOW_ENDPOINT_INFO,    // Show endpoint info
-    SHOW_BLOCK_SPEEDS      // Show block speeds
+    SHOW_BLOCK_SPEEDS,     // Show block speeds
+    SHOW_ACTIVE_ENDPOINTS  // Show active endpoints
     // TODO: Add FIND_ARBITRAGE_ONCE, RUN_TASKS etc. later
 };
 

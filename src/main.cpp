@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
             }
                 break;
                 
-                
+                // --- Handle MEASURE_BLOCK_SPEED ---
             case command_type::MEASURE_BLOCK_SPEED:
             {
                 std::cout << "Loading configuration for block speed measurement..." << std::endl;
@@ -150,6 +150,7 @@ int main(int argc, char* argv[]) {
             }
                 break;
                 
+                // --- Handle SHOW_ENDPOINT_INFO ---
             case command_type::SHOW_ENDPOINT_INFO:
             {
                 std::cout << "Loading configuration..." << std::endl;
@@ -159,11 +160,21 @@ int main(int argc, char* argv[]) {
             }
                 break;
                 
+                // --- Handle SHOW_BLOCK_SPEEDS ---
             case command_type::SHOW_BLOCK_SPEEDS:
             {
                 std::cout << "Loading configuration..." << std::endl;
                 struct_config current_config = load_config();
                 neozork::command_handlers::handle_show_block_speeds(current_config, params);
+            }
+                break;
+                
+                // --- Handle SHOW_ACTIVE_ENDPOINTS ---
+            case command_type::SHOW_ACTIVE_ENDPOINTS:
+            {
+                std::cout << "Loading configuration..." << std::endl;
+                struct_config current_config = load_config();
+                neozork::command_handlers::handle_show_active_endpoints(current_config, params);
             }
                 break;
                 
