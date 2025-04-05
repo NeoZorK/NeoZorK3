@@ -43,6 +43,7 @@ src/cli_parser.cpp
 src/connection_manager.cpp
 src/endpoint_discovery.cpp
 src/endpoint_scanner.cpp
+src/blockchain_adapters.cpp
 )
 
 # Specify the include path for the executable
