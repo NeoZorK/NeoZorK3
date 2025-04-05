@@ -14,6 +14,7 @@
 #include "endpoint_scanner.h"
 #include "main.h"
 #include "version.h"
+#include "ui.h"
 
 
 // MAIN FUNCTION
@@ -145,6 +146,14 @@ int main(int argc, char* argv[]) {
                     std::cerr << "Block speed measurement failed. Configuration not saved." << std::endl;
                     // Optionally return different exit code?
                 }
+            }
+                break;
+                
+            case command_type::SHOW_ENDPOINT_INFO:
+            {
+                std::cout << "Loading configuration..." << std::endl;
+                struct_config current_config = load_config();
+                handle_show_endpoint_info(current_config, params);
             }
                 break;
                 
