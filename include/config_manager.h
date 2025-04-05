@@ -1,6 +1,7 @@
 #ifndef NEOZORK3_CONFIG_MANAGER_H
 #define NEOZORK3_CONFIG_MANAGER_H
 
+#include <memory> // Defines std::allocator, std::allocator_traits
 #include <filesystem>
 #include <string>
 #include <vector>
