@@ -3,6 +3,7 @@
 #include "blockchain_adapters.h"
 #include "config_manager.h"
 #include "connection_manager.h" // To make RPC calls
+#include "ui.h"
 #include <iostream>
 #include <vector>
 #include <string>
