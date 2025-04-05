@@ -1,8 +1,10 @@
 // src/ui.cpp
 #include "ui.h"
+#include "config_manager.h"
 #include <iostream>
 #include <iomanip> // for std::setw, std::left
 #include <map>
+#include <vector>
 
 namespace neozork::ui {
 
@@ -47,6 +49,11 @@ void print_endpoint_details(
                     // If active but no latency, print N/A maybe?
                     std::cout << ", Latency: "; print_label("N/A");
                 }
+                
+                print_label("  Last Known Block: ");
+                print_value(endpoint.last_block_number); // Вызовет print_value(const std::optional<long long>&)
+                std::cout << std::endl;
+                
                 std::cout << ", Last Check: ";
                 print_value(status.last_check.value_or("N/A"));
                 std::cout << std::endl;
