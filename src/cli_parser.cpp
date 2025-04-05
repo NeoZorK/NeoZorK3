@@ -22,7 +22,7 @@ void print_help() {
     << "  -d, --discover-endpoints   Discover RPC endpoints from specified sources.\n"
     << "                             Requires -b/--blockchain.\n"
     << "                             Uses -s/--source (multiple allowed, defaults to 'chainlist').\n"
-    << "      --scan-endpoints       Scan configured endpoints for a blockchain to check status,\n"
+    << "      --scan                 Scan configured endpoints for a blockchain to check status,\n"
     << "                             latency, etc. Requires -b/--blockchain.\n"
     << "                             Optionally use --connection-type to scan only one type.\n"
     << "      --scan-single-endpoint Scan a *specific* configured endpoint URL for a blockchain.\n"
@@ -110,7 +110,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             check_multiple_commands(command_type::CONFIG_INIT);
         } else if (arg == "--discover-endpoints" || arg == "-d") {
             check_multiple_commands(command_type::DISCOVER_ENDPOINTS);
-        } else if (arg == "--scan-endpoints") {
+        } else if (arg == "--scan") {
             check_multiple_commands(command_type::SCAN_ENDPOINTS);
         } else if (arg == "--scan-single-endpoint") {
             check_multiple_commands(command_type::SCAN_SINGLE_ENDPOINT);
