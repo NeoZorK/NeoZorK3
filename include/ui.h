@@ -121,8 +121,27 @@ void print_endpoint_details(
                             const neozork::config_manager::struct_endpoint& endpoint
                             );
 
-// --- Progress Bar Utility (Placeholder) ---
-// TODO: Implement later
+// --- Progress Bar Functions ---
+
+/**
+ * @brief Starts and displays the initial progress bar.
+ * @param label Text label to display before the bar.
+ * @param total_items The total number of items to be processed (for percentage calculation).
+ */
+void start_progress(const std::string& label, long long total_items);
+
+/**
+ * @brief Updates the progress bar on the current line.
+ * @param current_item The number of items processed so far (1-based or 0-based, be consistent).
+ */
+void update_progress(long long current_item);
+
+/**
+ * @brief Finishes the progress bar by printing a newline.
+ * Should be called after the process is complete to move to the next line.
+ */
+void finish_progress();
+
 
 } // namespace neozork::ui
 
