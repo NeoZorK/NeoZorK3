@@ -28,6 +28,8 @@ void print_help() {
     << "      --scan-single-endpoint Scan a *specific* configured endpoint URL for a blockchain.\n"
     << "                             Requires -b/--blockchain and --endpoint <url>.\n"
     << "                             Optionally use --connection-type to scan only one type.\n"
+    << "      --measure-block-speed  Measure average block time for a blockchain using an\n"
+    << "                             active endpoint. Requires -b/--blockchain.\n"
     // --- Planned Commands ---
     << "      --show-active-endpoints\n" // Keep planned commands for context
     << "                             List active endpoints for a blockchain.\n"
@@ -70,28 +72,32 @@ void print_help() {
 
 // --- Updated parse_arguments function ---
 command_parameters parse_arguments(int argc, char* argv[]) {
-    std::vector<std::string> args(argv + 1, argv + argc); // Skip program name
+    
+    // Parse command-line arguments
+    std::vector<std::string> args(argv + 1, argv + argc);
+    
+    // Skip program name
     command_parameters params;
     params.type = command_type::NONE; // Default to no command explicitly set yet
-
+    
     // Allowed connection types for validation
     const std::map<std::string, bool> valid_connection_types = {
         {"http", true}, {"https", true}, {"ws", true}, {"wss", true}, {"ipc", true}
     };
-
+    
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
-
+        
         // Helper lambda to check for multiple commands
         auto check_multiple_commands = [&](command_type current_cmd_type) {
             if (params.type != command_type::NONE && params.type != current_cmd_type) {
-                 throw std::runtime_error("Cannot specify multiple commands (already have '"
-                    + std::to_string(static_cast<int>(params.type)) // Simple representation
-                    + "', trying to set '" + arg + "')");
+                throw std::runtime_error("Cannot specify multiple commands (already have '"
+                                         + std::to_string(static_cast<int>(params.type)) // Simple representation
+                                         + "', trying to set '" + arg + "')");
             }
             params.type = current_cmd_type;
         };
-
+        
         // --- Flags without arguments (Commands) ---
         if (arg == "--help" || arg == "-h") {
             params.type = command_type::HELP;
@@ -101,12 +107,15 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         } else if (arg == "--discover-endpoints" || arg == "-d") {
             check_multiple_commands(command_type::DISCOVER_ENDPOINTS);
         } else if (arg == "--scan-endpoints") {
-             check_multiple_commands(command_type::SCAN_ENDPOINTS);
+            check_multiple_commands(command_type::SCAN_ENDPOINTS);
         } else if (arg == "--scan-single-endpoint") {
-             check_multiple_commands(command_type::SCAN_SINGLE_ENDPOINT);
+            check_multiple_commands(command_type::SCAN_SINGLE_ENDPOINT);
+        }else if (arg == "--measure-block-speed") {
+            check_multiple_commands(command_type::MEASURE_BLOCK_SPEED);
         }
+        
         // TODO: Add other command flags here (like --show-active-endpoints etc.)
-
+        
         // --- Flags WITH arguments (Options) ---
         else if (arg == "--blockchain" || arg == "-b") {
             if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
@@ -123,38 +132,38 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             }
         } else if (arg == "--endpoint") {
             // Relevant only for SCAN_SINGLE_ENDPOINT, but parse anyway
-             if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
-                 params.endpoint_url = args[++i];
-             } else {
-                 throw std::runtime_error("Missing value for argument: " + arg);
-             }
+            if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
+                params.endpoint_url = args[++i];
+            } else {
+                throw std::runtime_error("Missing value for argument: " + arg);
+            }
         } else if (arg == "--connection-type" || arg == "-t") {
             // Relevant only for SCAN* commands, but parse anyway
-             if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
-                 std::string conn_type = args[++i];
-                 // Validate the connection type
-                 if (valid_connection_types.find(conn_type) == valid_connection_types.end()) {
-                     throw std::runtime_error("Invalid value for " + arg + ": '" + conn_type +
-                                               "'. Allowed types: http, https, ws, wss, ipc.");
-                 }
-                 params.connection_type = conn_type;
-             } else {
-                 throw std::runtime_error("Missing value for argument: " + arg);
-             }
+            if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
+                std::string conn_type = args[++i];
+                // Validate the connection type
+                if (valid_connection_types.find(conn_type) == valid_connection_types.end()) {
+                    throw std::runtime_error("Invalid value for " + arg + ": '" + conn_type +
+                                             "'. Allowed types: http, https, ws, wss, ipc.");
+                }
+                params.connection_type = conn_type;
+            } else {
+                throw std::runtime_error("Missing value for argument: " + arg);
+            }
         }
         // TODO: Add other flags with arguments here (password, dex_id, etc.)
-
+        
         // --- Unknown argument ---
         else if (arg.rfind("-", 0) == 0) {
             throw std::runtime_error("Unknown option: " + arg);
         } else {
-             // Allow positional arguments only if we expect them for a specific command (none currently)
-             throw std::runtime_error("Unexpected positional argument: '" + arg + "'. Use flags like --blockchain or --endpoint.");
+            // Allow positional arguments only if we expect them for a specific command (none currently)
+            throw std::runtime_error("Unexpected positional argument: '" + arg + "'. Use flags like --blockchain or --endpoint.");
         }
     }
-
+    
     // --- Post-parsing Validation ---
-
+    
     // Validation for DISCOVER_ENDPOINTS
     if (params.type == command_type::DISCOVER_ENDPOINTS) {
         if (!params.blockchain_name.has_value()) {
@@ -167,11 +176,11 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
         // Check for irrelevant flags
         if (params.endpoint_url.has_value()) {
-             std::cerr << "Warning: --endpoint argument ignored for --discover-endpoints command." << std::endl;
+            std::cerr << "Warning: --endpoint argument ignored for --discover-endpoints command." << std::endl;
         }
-         if (params.connection_type.has_value()) {
-             std::cerr << "Warning: --connection-type argument ignored for --discover-endpoints command." << std::endl;
-         }
+        if (params.connection_type.has_value()) {
+            std::cerr << "Warning: --connection-type argument ignored for --discover-endpoints command." << std::endl;
+        }
     }
     // Validation for SCAN_ENDPOINTS
     else if (params.type == command_type::SCAN_ENDPOINTS) {
@@ -180,10 +189,10 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
         // Check for irrelevant flags
         if (params.endpoint_url.has_value()) {
-             std::cerr << "Warning: --endpoint argument ignored for --scan-endpoints command (use --scan-single-endpoint instead)." << std::endl;
+            std::cerr << "Warning: --endpoint argument ignored for --scan-endpoints command (use --scan-single-endpoint instead)." << std::endl;
         }
         if (!params.sources.empty()) {
-             std::cerr << "Warning: --source argument ignored for --scan-endpoints command." << std::endl;
+            std::cerr << "Warning: --source argument ignored for --scan-endpoints command." << std::endl;
         }
     }
     // Validation for SCAN_SINGLE_ENDPOINT
@@ -194,25 +203,42 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         if (!params.endpoint_url.has_value()) {
             throw std::runtime_error("--endpoint <url> is required for --scan-single-endpoint");
         }
-         if (!params.sources.empty()) {
-             std::cerr << "Warning: --source argument ignored for --scan-single-endpoint command." << std::endl;
-         }
+        if (!params.sources.empty()) {
+            std::cerr << "Warning: --source argument ignored for --scan-single-endpoint command." << std::endl;
+        }
     }
     // Add validation checks for other commands as they are implemented
-
+    
+    else if (params.type == command_type::MEASURE_BLOCK_SPEED) {
+        if (!params.blockchain_name.has_value()) {
+            throw std::runtime_error("--blockchain <name|id> is required for --measure-block-speed");
+        }
+        // Check for irrelevant flags (optional, good practice)
+        if (params.endpoint_url.has_value()) {
+            std::cerr << "Warning: --endpoint argument ignored for --measure-block-speed command." << std::endl;
+        }
+        if (params.connection_type.has_value()) {
+            std::cerr << "Warning: --connection-type argument ignored for --measure-block-speed command." << std::endl;
+        }
+        if (!params.sources.empty()) {
+            std::cerr << "Warning: --source argument ignored for --measure-block-speed command." << std::endl;
+        }
+    }
+    
+    
     // Default action if no command specified
     if (params.type == command_type::NONE) {
-         // If other options were given without a command, it's likely an error
-         if (params.blockchain_name.has_value() || params.endpoint_url.has_value() || params.connection_type.has_value() || !params.sources.empty()) {
-              std::cerr << "Warning: Options provided without a specific command." << std::endl;
-              params.type = command_type::HELP; // Show help in case of confusion
-         } else {
-              std::cout << "No command specified. Running default action (currently shows help)." << std::endl;
-              // TODO: Decide on default action later (e.g., run tasks or show status)
-              params.type = command_type::HELP; // Default to showing help for now
-         }
+        // If other options were given without a command, it's likely an error
+        if (params.blockchain_name.has_value() || params.endpoint_url.has_value() || params.connection_type.has_value() || !params.sources.empty()) {
+            std::cerr << "Warning: Options provided without a specific command." << std::endl;
+            params.type = command_type::HELP; // Show help in case of confusion
+        } else {
+            std::cout << "No command specified. Running default action (currently shows help)." << std::endl;
+            // TODO: Decide on default action later (e.g., run tasks or show status)
+            params.type = command_type::HELP; // Default to showing help for now
+        }
     }
-
+    
     return params; // Return collected parameters
 }
 
