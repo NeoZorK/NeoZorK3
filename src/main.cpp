@@ -7,6 +7,7 @@
 #include <exception>
 
 // Our includes
+#include "blockchain_adapters.h"
 #include "config_manager.h"
 #include "cli_parser.h"
 #include "endpoint_discovery.h"
@@ -30,6 +31,7 @@ int main(int argc, char* argv[]) {
     using namespace neozork::cli_parser;
     using namespace neozork::endpoint_discovery;
     using namespace neozork::endpoint_scanner;
+    using namespace neozork::blockchain_adapters;
     
     // 1. Ensure configuration file exists (create default if missing)
     try {
@@ -124,6 +126,27 @@ int main(int argc, char* argv[]) {
             }
                 break;
                 
+                
+            case command_type::MEASURE_BLOCK_SPEED:
+            {
+                std::cout << "Loading configuration for block speed measurement..." << std::endl;
+                struct_config current_config = load_config();
+                // Ensure blockchain name is present
+                if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for measure speed."); }
+                
+                std::cout << "Starting block speed measurement..." << std::endl;
+                std::optional<double> measured_speed = measure_block_speed(current_config, params.blockchain_name.value());
+                
+                if(measured_speed) {
+                    std::cout << "Measurement finished successfully. Average block time: " << *measured_speed << " ms. Saving configuration..." << std::endl;
+                    save_config(current_config); // Save updated block speed
+                    std::cout << "Configuration saved." << std::endl;
+                } else {
+                    std::cerr << "Block speed measurement failed. Configuration not saved." << std::endl;
+                    // Optionally return different exit code?
+                }
+            }
+                break;
                 
                 // --- Handle NONE ---
             case command_type::NONE:
