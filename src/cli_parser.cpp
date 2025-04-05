@@ -1,13 +1,13 @@
 // src/cli_parser.cpp
 
-#include "cli_parser.h"     // Our header
-#include "config_manager.h" // To call initialize_config (if needed, not directly used here now)
+#include "cli_parser.h"
+#include "config_manager.h"
 #include "version.h"
 #include <iostream>
 #include <string>
 #include <vector>
-#include <stdexcept> // For std::runtime_error
-#include <map>       // For checking valid connection types
+#include <stdexcept>
+#include <map>
 
 namespace neozork::cli_parser {
 
