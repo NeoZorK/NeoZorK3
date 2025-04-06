@@ -12,7 +12,10 @@
 #include <cctype>    // For ::tolower
 #include <iomanip>   // For std::setw in logging
 #include <limits>    // For std::numeric_limits
+#include <ui.h>
 #include "version.h" // For program version
+#include <nlohmann/json.hpp>
+#include <regex>
 
 // Include nlohmann/json as we will parse JSON
 #include <nlohmann/json.hpp>
@@ -191,6 +194,84 @@ std::vector<std::string> parse_ethereum_lists_json(const std::string& content) {
     return urls;
 }
 
+/**
+ * @brief Parses chain list JSON content and finds the name for a given chain ID.
+ * Expects JSON structure similar to chainid.network/chains.json (array of objects).
+ * @param json_content The JSON string content.
+ * @param target_id The network ID to search for.
+ * @return std::optional<std::string> The found name, or nullopt if not found or error.
+ */
+std::optional<std::string> find_chain_name_from_id(const std::string& json_content, int target_id) {
+    if (target_id <= 0) return std::nullopt; // ID должен быть положительным
+
+    try {
+        json j = json::parse(json_content);
+        if (!j.is_array()) {
+             std::cerr << LOG_PREFIX << "WARN: Chain list JSON for name lookup is not an array." << std::endl;
+            return std::nullopt;
+        }
+
+        // Iterate through the array of chain objects
+        for (const auto& chain_obj : j) {
+            if (chain_obj.is_object() && chain_obj.contains("chainId")) {
+                int current_id = chain_obj.value("chainId", -1);
+                if (current_id == target_id) {
+                    return chain_obj.value("name", std::optional<std::string>());
+                }
+            }
+        }
+    } catch (const json::parse_error& e) {
+        std::cerr << LOG_PREFIX << "WARN: Failed to parse chain list JSON for name lookup: " << e.what() << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << LOG_PREFIX << "WARN: Error during chain name lookup: " << e.what() << std::endl;
+    }
+
+    // If we reach here, either the ID was not found or an error occurred
+    return std::nullopt;
+}
+
+// --- Downloading functions ---
+std::optional<std::string> download_master_chain_list() {
+     std::string list_url = "https://chainid.network/chains.json";
+     std::cout << LOG_PREFIX << "Attempting to download master chain list from: " << list_url << " (for name lookup)" << std::endl;
+
+     // Parsing URL
+     std::regex url_regex(R"(^(https?)://([^/]+)(/.*)?$)"); // Support http/https
+     std::smatch match;
+     std::string scheme, host, path = "/";
+     if (std::regex_match(list_url, match, url_regex) && match.size() >= 3) {
+         scheme = match[1].str();
+         host = match[2].str();
+         if (match.size() >= 4 && match[3].matched) { path = match[3].str(); }
+     } else {
+          std::cerr << LOG_PREFIX << "ERROR: Could not parse master chain list URL: " << list_url << std::endl;
+          return std::nullopt;
+     }
+
+     // Downloading the list
+     neozork::connection_manager::http_headers headers = {
+         {"User-Agent", "NeoZorK3_Discovery_Bot/" + neozork::PROGRAM_VERSION},
+         {"Accept", "application/json, */*"}
+     };
+     neozork::connection_manager::connection_result result;
+     if (scheme == "https") {
+        result = neozork::connection_manager::https_get(host, path, headers);
+     } else {
+         // TODO: Add support for http_get if needed
+          std::cerr << LOG_PREFIX << "ERROR: HTTP download not implemented for master chain list." << std::endl;
+          return std::nullopt;
+     }
+
+
+     if (!result.error_message && result.body.has_value()) {
+          std::cout << LOG_PREFIX << "Master chain list downloaded successfully." << std::endl;
+          return result.body;
+     } else {
+          std::cerr << LOG_PREFIX << "ERROR: Failed to download master chain list: "
+                    << (result.error_message ? *result.error_message : "Unknown error") << std::endl;
+          return std::nullopt;
+     }
+}
 
 // --- Main discovery function (Handles source selection and parsing) ---
 // (No changes needed in this function structure, only in download/parse part)
