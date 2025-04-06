@@ -166,16 +166,21 @@ void create_default_config(const std::filesystem::path& path) {
     fantom.name = "Fantom";
     fantom.network_id = 250;
     
-    struct_endpoint ftm_rpc1; // rpc.ftm.tools
+    struct_endpoint ftm_rpc1;
     ftm_rpc1.connection_urls["https"] = "https://rpc.ftm.tools/";
     
-    struct_endpoint ftm_rpc2; // Blast API
+    struct_endpoint ftm_rpc2;
     ftm_rpc2.connection_urls["https"] = "https://fantom-mainnet.public.blastapi.io/";
     ftm_rpc2.connection_urls["wss"] = "wss://fantom-mainnet.public.blastapi.io/";
-    ftm_rpc2.access_token.emplace("YOUR_BLASTAPI_TOKEN_HERE"); // Placeholder
+    ftm_rpc2.access_token.emplace("YOUR_BLASTAPI_TOKEN_HERE");
+    
+    struct_endpoint ftm_rpc3;
+    ftm_rpc3.connection_urls["https"] = "https://fantom-rpc.publicnode.com";
+    ftm_rpc3.connection_urls["wss"] = "wss://fantom-rpc.publicnode.com";
     
     fantom.endpoints.push_back(ftm_rpc1);
     fantom.endpoints.push_back(ftm_rpc2);
+    fantom.endpoints.push_back(ftm_rpc3);
     default_config.blockchains.push_back(fantom);
     
     // --- Example 2: Avalanche ---
@@ -194,7 +199,7 @@ void create_default_config(const std::filesystem::path& path) {
     eth.name = "Ethereum";
     eth.network_id = 1;
     
-    struct_endpoint eth_rpc1; // Cloudflare
+    struct_endpoint eth_rpc1;
     eth_rpc1.connection_urls["https"] = "https://cloudflare-eth.com/";
     
     eth.endpoints.push_back(eth_rpc1);
@@ -202,6 +207,27 @@ void create_default_config(const std::filesystem::path& path) {
     
     
     // --- Example 4: Binance Smart Chain ---
+    struct_blockchain_info bsc;
+    bsc.name = "Binance Smart Chain";
+    bsc.network_id = 56;
+    
+    struct_endpoint bsc_rpc1;
+    bsc_rpc1.connection_urls["https"] = "https://bsc-dataseed.binance.org/";
+    
+    bsc.endpoints.push_back(bsc_rpc1);
+    default_config.blockchains.push_back(bsc);
+    
+    // --- Example 5: Sonic ---
+    struct_blockchain_info sonic;
+    sonic.name = "Sonic";
+    sonic.network_id = 64165;
+    struct_endpoint sonic_rpc1;
+    
+    sonic_rpc1.connection_urls["https"] = "https://rpc.sonic.fantom.network/";
+    sonic.endpoints.push_back(sonic_rpc1);
+    default_config.blockchains.push_back(sonic);
+    
+    // Saving the default config
     try {
         json j = default_config;
         std::ofstream ofs(path);
@@ -462,11 +488,27 @@ std::optional<std::reference_wrapper<const struct_pool_info>> find_pool(
 
 // Add a new blockchain
 bool add_blockchain(struct_config& config_ref, const struct_blockchain_info& new_blockchain) {
-    // Проверяем по ID и имени
-    if (find_blockchain(config_ref, new_blockchain.name) || find_blockchain(config_ref, std::to_string(new_blockchain.network_id))) {
-        std::cerr << "Warning: Blockchain '" << new_blockchain.name << "' or ID " << new_blockchain.network_id << " already exists. Skipping." << std::endl;
-        return false;
+    
+    // Check if the blockchain already exists by ID or name
+    if (new_blockchain.network_id > 0) {
+        auto by_id = find_blockchain(config_ref, std::to_string(new_blockchain.network_id));
+        if (by_id) {
+            
+             // Find by ID, do not add
+             std::cerr << "Info: Blockchain with ID " << new_blockchain.network_id << " (Name: '" << by_id.value().get().name << "') already exists. Skipping add for '" << new_blockchain.name << "'." << std::endl;
+             return false;
+        }
     }
+    // Check by name always
+    auto by_name = find_blockchain(config_ref, new_blockchain.name);
+     if (by_name) {
+         
+         // Find by name, do not add
+         std::cerr << "Info: Blockchain with Name '" << new_blockchain.name << "' (ID: " << by_name.value().get().network_id << ") already exists. Skipping add." << std::endl;
+         return false;
+     }
+
+    // Add the new blockchain
     config_ref.blockchains.push_back(new_blockchain);
     return true;
 }
