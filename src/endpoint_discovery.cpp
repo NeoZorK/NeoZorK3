@@ -3,161 +3,167 @@
 #include "endpoint_discovery.h"
 #include "connection_manager.h" // For HTTP requests
 #include "config_manager.h"     // For finding blockchain and adding endpoints
+#include "ui.h"                 // For progress bar
+#include "version.h"            // For program version
+
 #include <iostream>
 #include <string>
 #include <vector>
-#include <sstream>   // For parsing strings
+#include <sstream>              // For parsing strings
 #include <stdexcept>
-#include <algorithm> // For std::find_if, std::transform
-#include <cctype>    // For ::tolower
-#include <iomanip>   // For std::setw in logging
-#include <limits>    // For std::numeric_limits
-#include <ui.h>
-#include "version.h" // For program version
-#include <nlohmann/json.hpp>
-#include <regex>
+#include <algorithm>            // For std::find_if, std::transform
+#include <cctype>               // For ::tolower
+#include <iomanip>              // For std::setw (if used in detailed logs)
+#include <limits>               // For std::numeric_limits
+#include <nlohmann/json.hpp>    // For JSON parsing
+#include <regex>                // For URL parsing in helpers
 
-// Include nlohmann/json as we will parse JSON
-#include <nlohmann/json.hpp>
+// Use nlohmann::json with the shorter 'json' alias
 using json = nlohmann::json;
 
-// Define a helper for consistent logging indentation
+// Define a prefix for log messages originating from this module
 #define LOG_PREFIX "    [Discovery] "
 
+// Define the namespace for endpoint discovery functionalities
 namespace neozork::endpoint_discovery {
 
 // --- Utility functions ---
-// (Keep the utility functions: trim_string, trim_quotes, contains_placeholder, get_connection_type_from_url, extract_placeholder_name)
+
+// Trim leading and trailing whitespace from a string
 std::string trim_string(const std::string& str) {
     size_t first = str.find_first_not_of(" \t\n\r\f\v");
-    if (std::string::npos == first) { return str; }
+    if (std::string::npos == first) {
+        return str;
+    }
     size_t last = str.find_last_not_of(" \t\n\r\f\v");
     return str.substr(first, (last - first + 1));
 }
+
+// Remove leading and trailing double or single quotes from a string
 std::string trim_quotes(const std::string& str) {
     if (str.length() >= 2 && ((str.front() == '"' && str.back() == '"') || (str.front() == '\'' && str.back() == '\''))) {
         return str.substr(1, str.length() - 2);
     }
     return str;
 }
+
+// Check if a URL string contains a placeholder like ${API_KEY}
 bool contains_placeholder(const std::string& url) {
     return url.find("${") != std::string::npos && url.find("}") != std::string::npos;
 }
+
+// Determine the connection protocol type (scheme) from a URL string
 std::optional<std::string> get_connection_type_from_url(const std::string& url) {
     if (url.rfind("https://", 0) == 0) return "https";
     if (url.rfind("wss://", 0) == 0) return "wss";
     if (url.rfind("http://", 0) == 0) return "http";
     if (url.rfind("ws://", 0) == 0) return "ws";
     if (url.rfind("ipc://", 0) == 0) return "ipc";
-    // Allow simple hostnames too? Maybe later. For now, require scheme.
-    // size_t scheme_pos = url.find("://");
-    // if (scheme_pos == std::string::npos) return "https"; // Assume https if no scheme? Risky.
+    // Return nullopt if scheme is missing or not recognized
     return std::nullopt;
 }
+
+// Extract the name of a placeholder (e.g., API_KEY) from a URL like wss://.../${API_KEY}
 std::optional<std::string> extract_placeholder_name(const std::string& url) {
     size_t start_pos = url.find("${");
     if (start_pos != std::string::npos) {
         size_t end_pos = url.find("}", start_pos);
-        if (end_pos != std::string::npos) { return url.substr(start_pos + 2, end_pos - (start_pos + 2)); }
+        // Ensure closing brace is found after opening one
+        if (end_pos != std::string::npos) {
+            // Extract the content between ${ and }
+            return url.substr(start_pos + 2, end_pos - (start_pos + 2));
+        }
     }
+    // Return nullopt if no valid placeholder found
     return std::nullopt;
 }
 
 
 // --- Parsing functions ---
+
+// Parse content assuming Chainlist/ChainID JSON format (array of objects with chainId, name, rpc fields)
 std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, int target_chain_id) {
     std::vector<std::string> urls;
-    std::cout << LOG_PREFIX << "Parsing content as Chainlist RPCs JSON for target chain ID: " << target_chain_id << "..." << std::endl;
+    // Log the start of parsing for the specific chain ID
+    std::cout << LOG_PREFIX << "Parsing as Chainlist/ChainID JSON for target ID: " << target_chain_id << "..." << std::endl;
+    // Ensure target ID is valid for filtering
     if (target_chain_id <= 0) {
-        std::cerr << LOG_PREFIX << "WARNING: Cannot filter Chainlist by Chain ID because target ID is " << target_chain_id << ". Returning no URLs." << std::endl;
-        return urls;
+        std::cerr << LOG_PREFIX << "WARNING: Invalid target Chain ID " << target_chain_id << ". Cannot filter." << std::endl;
+        return urls; // Return empty vector
     }
     try {
+        // Parse the input string content into a JSON object
         json j = json::parse(content);
-        std::cout << LOG_PREFIX << "Chainlist JSON parsed successfully." << std::endl;
-        
+        // Expect a top-level array of chain objects
         if (!j.is_array()) {
-            std::cerr << LOG_PREFIX << "ERROR: Expected a JSON array (of chain objects) from Chainlist source, but got type: " << j.type_name() << std::endl;
-            return urls;
+            std::cerr << LOG_PREFIX << "ERROR: Expected JSON array from source, got " << j.type_name() << std::endl;
+            return urls; // Return empty vector on format mismatch
         }
-        
-        size_t chain_count = j.size();
-        std::cout << LOG_PREFIX << "Found " << chain_count << " chain objects in the top-level array." << std::endl;
         int found_rpcs_count = 0;
         bool target_chain_found = false;
-        
-        // Iterate through the array of CHAIN OBJECTS
+        // Iterate through chain objects in the array
         for (const auto& chain_obj : j) {
-            if (!chain_obj.is_object()) { continue; } // Skip non-objects
-            
-            // Check if this chain object has the target chainId
+            if (!chain_obj.is_object()) continue; // Skip non-objects
+            // Check if this object contains the target chain ID
             if (chain_obj.contains("chainId")) {
-                int current_chain_id = chain_obj.value("chainId", -1);
-                
-                if (current_chain_id == target_chain_id) {
+                // Get the ID, defaulting to -1 if not convertible
+                int current_id = chain_obj.value("chainId", -1);
+                // Compare with the target ID
+                if (current_id == target_chain_id) {
                     target_chain_found = true;
-                    std::string chain_name = chain_obj.value("name", "[Unknown Name]");
-                    std::cout << LOG_PREFIX << "Found target chain object: '" << chain_name << "' (ID: " << current_chain_id << ")." << std::endl;
-                    
-                    // Now, check if this chain object has an 'rpc' array
+                    std::string name = chain_obj.value("name", "?"); // Get name for logging
+                    // Log that the target chain was found
+                    // std::cout << LOG_PREFIX << "Found target chain: '" << name << "'." << std::endl; // Less verbose log
+                    // Check if it has an array of RPCs ("rpc" key)
                     if (chain_obj.contains("rpc") && chain_obj.at("rpc").is_array()) {
                         const auto& rpc_array = chain_obj.at("rpc");
-                        std::cout << LOG_PREFIX << "  Found 'rpc' array with " << rpc_array.size() << " entries for this chain." << std::endl;
-                        
-                        // Iterate through the RPC entries within this chain object
+                        // Iterate through RPC entries (can be strings or objects)
                         for (const auto& rpc_item : rpc_array) {
-                            // Chainlist RPC items can be strings or objects
-                            std::string current_url;
+                            std::string url;
+                            // Extract URL string regardless of whether item is string or object
                             if (rpc_item.is_string()) {
-                                current_url = rpc_item.get<std::string>();
+                                url = rpc_item.get<std::string>();
                             } else if (rpc_item.is_object() && rpc_item.contains("url")) {
-                                current_url = rpc_item.value("url", "");
-                                // Could potentially extract tracking info here later if needed
+                                url = rpc_item.value("url", "");
                             }
-                            
-                            if (!current_url.empty()) {
-                                // Exclude URLs containing placeholders
-                                if (current_url.find("${") == std::string::npos) {
-                                    std::cout << LOG_PREFIX << "    Adding valid RPC URL: " << current_url << std::endl;
-                                    urls.push_back(current_url);
-                                    found_rpcs_count++;
-                                } else {
-                                    std::cout << LOG_PREFIX << "    Skipping placeholder RPC URL: " << current_url << std::endl;
-                                }
+                            // Add URL if valid and not a placeholder
+                            if (!url.empty() && !contains_placeholder(url)) {
+                                urls.push_back(url);
+                                found_rpcs_count++;
                             }
-                        } // end inner loop (rpc items)
+                        }
                     } else {
-                        std::cout << LOG_PREFIX << "  WARNING: Target chain object found, but it has no 'rpc' array." << std::endl;
+                        std::cout << LOG_PREFIX << "WARNING: Target chain '" << name << "' has no 'rpc' array." << std::endl;
                     }
-                    // Since chainId should be unique, we can stop searching after finding the target chain
-                    break;
-                } // end if current_chain_id == target_chain_id
-            } // end if contains("chainId")
-        } // end outer loop (chain objects)
-        
-        if (!target_chain_found) {
-            std::cout << LOG_PREFIX << "Target chain ID " << target_chain_id << " not found in the JSON data." << std::endl;
+                    break; // Found the target chain, no need to search further
+                }
+            }
         }
-        std::cout << LOG_PREFIX << "Finished processing Chainlist JSON. Found and added " << found_rpcs_count << " valid RPC URLs for target chain ID " << target_chain_id << "." << std::endl;
-        
+        if (!target_chain_found) std::cout << LOG_PREFIX << "Target chain ID " << target_chain_id << " not found in source." << std::endl;
+        std::cout << LOG_PREFIX << "Finished parsing source. Added " << found_rpcs_count << " RPC URLs." << std::endl;
     } catch (const json::parse_error& e) {
-        std::cerr << LOG_PREFIX << "ERROR: Failed to parse Chainlist JSON source: " << e.what() << std::endl;
+        std::cerr << LOG_PREFIX << "ERROR parsing source JSON: " << e.what() << std::endl;
     } catch (const std::exception& e) {
-        std::cerr << LOG_PREFIX << "ERROR: Generic error processing Chainlist JSON source: " << e.what() << std::endl;
+        // Catch other potential errors during JSON processing
+        std::cerr << LOG_PREFIX << "ERROR processing source JSON: " << e.what() << std::endl;
     }
     return urls;
 }
 
+// Parse content assuming each non-empty, non-comment line is a URL
 std::vector<std::string> parse_simple_url_list(const std::string& content) {
     std::cout << LOG_PREFIX << "Parsing content as simple URL list..." << std::endl;
     std::vector<std::string> urls;
     std::stringstream ss(content);
     std::string line;
     int line_count = 0;
+    // Read line by line
     while (std::getline(ss, line)) {
         line_count++;
         std::string processed_line = trim_string(line);
+        // Add if not empty and not a comment line starting with '#'
         if (!processed_line.empty() && processed_line[0] != '#') {
+            // Remove potential quotes around the URL
             urls.push_back(trim_quotes(processed_line));
         }
     }
@@ -165,34 +171,44 @@ std::vector<std::string> parse_simple_url_list(const std::string& content) {
     return urls;
 }
 
+// Parse content assuming ethereum-lists JSON format (object with "rpc" array of strings)
 std::vector<std::string> parse_ethereum_lists_json(const std::string& content) {
-    std::cout << LOG_PREFIX << "Attempting to parse content as ethereum-lists JSON (eip155-X format)..." << std::endl;
+    std::cout << LOG_PREFIX << "Attempting to parse as ethereum-lists JSON..." << std::endl;
     std::vector<std::string> urls;
     try {
         json j = json::parse(content);
-        std::cout << LOG_PREFIX << "JSON parsed successfully." << std::endl;
+        // Check for expected structure: an object containing an "rpc" array
         if (j.is_object() && j.contains("rpc") && j.at("rpc").is_array()) {
-            std::cout << LOG_PREFIX << "Found 'rpc' array with " << j.at("rpc").size() << " items." << std::endl;
+            // Iterate through the "rpc" array
             for (const auto& item : j.at("rpc")) {
+                // Expect strings in the array
                 if (item.is_string()) {
                     std::string url = item.get<std::string>();
-                    // Exclude placeholders
-                    if (!url.empty() && url.find("${") == std::string::npos) {
+                    // Add the URL if it's not empty and not a placeholder
+                    if (!url.empty() && !contains_placeholder(url)) {
                         urls.push_back(url);
-                    } else if (!url.empty()){
-                        std::cout << LOG_PREFIX << "Skipping placeholder URL from ethereum-lists: " << url << std::endl;
+                    } else if (!url.empty()) {
+                        // Log skipped placeholder URLs
+                        // std::cout << LOG_PREFIX << "Skipping placeholder URL from ethereum-lists: " << url << std::endl; // Less verbose
                     }
-                } else { std::cerr << LOG_PREFIX << "WARNING: Non-string item found in 'rpc' array: " << item.dump() << std::endl; }
+                } else {
+                    std::cerr << LOG_PREFIX << "WARNING: Non-string item found in 'rpc' array." << std::endl;
+                }
             }
-        } else { std::cerr << LOG_PREFIX << "WARNING: JSON source is not an object or does not contain a valid 'rpc' array (expected ethereum-lists format)." << std::endl; }
+        } else {
+            std::cerr << LOG_PREFIX << "WARNING: Invalid ethereum-lists format (expected object with 'rpc' array)." << std::endl;
+        }
     } catch (const json::parse_error& e) {
         std::cerr << LOG_PREFIX << "ERROR parsing ethereum-lists JSON: " << e.what() << std::endl;
     } catch (const std::exception& e) {
         std::cerr << LOG_PREFIX << "ERROR processing ethereum-lists JSON: " << e.what() << std::endl;
     }
-    std::cout << LOG_PREFIX << "Extracted " << urls.size() << " URLs from ethereum-lists format." << std::endl;
+    std::cout << LOG_PREFIX << "Extracted " << urls.size() << " URLs from ethereum-lists." << std::endl;
     return urls;
 }
+
+
+// --- Helper: Find chain name from ID ---
 
 /**
  * @brief Parses chain list JSON content and finds the name for a given chain ID.
@@ -209,7 +225,7 @@ std::optional<std::string> find_chain_name_from_id(const std::string& json_conte
         json j = json::parse(json_content);
         // Ensure the top level is an array
         if (!j.is_array()) {
-             std::cerr << LOG_PREFIX << "WARN: Chain list JSON for name lookup is not an array." << std::endl;
+            std::cerr << LOG_PREFIX << "WARN: Chain list JSON for name lookup is not an array." << std::endl;
             return std::nullopt;
         }
 
@@ -247,176 +263,370 @@ std::optional<std::string> find_chain_name_from_id(const std::string& json_conte
     return std::nullopt;
 }
 
-// --- Downloading functions ---
+// --- Helper: Download master chain list ---
+
+/**
+ * @brief Downloads the master list of chains (e.g., from chainid.network).
+ * Used primarily to look up chain names based on IDs.
+ * @return std::optional<std::string> The JSON content as a string if successful, otherwise nullopt.
+ */
 std::optional<std::string> download_master_chain_list() {
-     std::string list_url = "https://chainid.network/chains.json";
-     std::cout << LOG_PREFIX << "Attempting to download master chain list from: " << list_url << " (for name lookup)" << std::endl;
+    // URL for the master list
+    std::string list_url = "https://chainid.network/chains.json";
+    std::cout << LOG_PREFIX << "Attempting to download master chain list from: " << list_url << " (for name lookup)" << std::endl;
 
-     // Parsing URL
-     std::regex url_regex(R"(^(https?)://([^/]+)(/.*)?$)"); // Support http/https
-     std::smatch match;
-     std::string scheme, host, path = "/";
-     if (std::regex_match(list_url, match, url_regex) && match.size() >= 3) {
-         scheme = match[1].str();
-         host = match[2].str();
-         if (match.size() >= 4 && match[3].matched) { path = match[3].str(); }
-     } else {
-          std::cerr << LOG_PREFIX << "ERROR: Could not parse master chain list URL: " << list_url << std::endl;
-          return std::nullopt;
-     }
+    // Regex to parse scheme, host, and optional path from the URL
+    // Supports http and https
+    std::regex url_regex(R"(^(https?)://([^/]+)(/.*)?$)");
+    std::smatch match;
+    std::string scheme, host, path = "/"; // Default path is root
 
-     // Downloading the list
-     neozork::connection_manager::http_headers headers = {
-         {"User-Agent", "NeoZorK3_Discovery_Bot/" + neozork::PROGRAM_VERSION},
-         {"Accept", "application/json, */*"}
-     };
-     neozork::connection_manager::connection_result result;
-     if (scheme == "https") {
+    // Match the URL and extract components
+    if (std::regex_match(list_url, match, url_regex) && match.size() >= 3) {
+        scheme = match[1].str(); // http or https
+        host = match[2].str();   // e.g., chainid.network
+        // Check if path component exists
+        if (match.size() >= 4 && match[3].matched) {
+            path = match[3].str();   // e.g., /chains.json
+        }
+    } else {
+        // Log error if URL cannot be parsed
+        std::cerr << LOG_PREFIX << "ERROR: Could not parse master chain list URL: " << list_url << std::endl;
+        return std::nullopt;
+    }
+
+    // Prepare standard HTTP headers for the request
+    neozork::connection_manager::http_headers headers = {
+        {"User-Agent", "NeoZorK3_Discovery_Bot/" + neozork::PROGRAM_VERSION},
+        {"Accept", "application/json, */*"} // Accept JSON primarily
+    };
+
+    // Perform the download using the connection manager
+    neozork::connection_manager::connection_result result;
+    if (scheme == "https") {
         result = neozork::connection_manager::https_get(host, path, headers);
-     } else {
-         // TODO: Add support for http_get if needed
-          std::cerr << LOG_PREFIX << "ERROR: HTTP download not implemented for master chain list." << std::endl;
-          return std::nullopt;
-     }
+    } else {
+        // Currently only HTTPS is supported for this specific download
+        std::cerr << LOG_PREFIX << "ERROR: HTTP download not implemented for master chain list." << std::endl;
+        return std::nullopt;
+    }
 
-
-     if (!result.error_message && result.body.has_value()) {
-          std::cout << LOG_PREFIX << "Master chain list downloaded successfully." << std::endl;
-          return result.body;
-     } else {
-          std::cerr << LOG_PREFIX << "ERROR: Failed to download master chain list: "
-                    << (result.error_message ? *result.error_message : "Unknown error") << std::endl;
-          return std::nullopt;
-     }
+    // Check if the download was successful (no client error and body received)
+    if (!result.error_message && result.body.has_value()) {
+        std::cout << LOG_PREFIX << "Master chain list downloaded successfully." << std::endl;
+        // Return the downloaded JSON content
+        return result.body;
+    } else {
+        // Log download failure details
+        std::cerr << LOG_PREFIX << "ERROR: Failed to download master chain list: "
+                  << (result.error_message ? *result.error_message : "Unknown error") << std::endl;
+        return std::nullopt;
+    }
 }
 
-// --- Main discovery function (Handles source selection and parsing) ---
-bool discover_endpoints(
-        const std::string& blockchain_name_or_id,
-        const std::vector<std::string>& sources,
-        neozork::config_manager::struct_config& config)
-{
-    std::cout << "[Discovery] Starting endpoint discovery for blockchain: '" << blockchain_name_or_id << "'..." << std::endl;
 
+// --- Main Discovery Function ---
+
+/**
+ * @brief Discovers RPC endpoints for a specified blockchain from given sources.
+ * Handles finding/creating the blockchain entry in the config, potentially looking up names for IDs.
+ * Downloads data from sources, parses URLs, and adds unique endpoints to the config.
+ * @param blockchain_name_or_id The name or network ID provided by the user.
+ * @param sources Vector of source strings (keywords like 'chain', 'eth' or direct URLs).
+ * @param config The main configuration object (mutable).
+ * @return True if the discovery process completed (doesn't guarantee endpoints were added), false on critical error.
+ */
+bool discover_endpoints(
+    const std::string& blockchain_name_or_id,
+    const std::vector<std::string>& sources,
+    neozork::config_manager::struct_config& config)
+{
+    std::cout << "[Discovery] Starting discovery for: '" << blockchain_name_or_id << "'..." << std::endl;
+
+    // --- 1. Find or Create Blockchain Entry ---
+    // Attempt to find the blockchain in the config by the provided name or ID
     auto blockchain_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+    // Pointer to the blockchain info struct in the config (will be set below)
     neozork::config_manager::struct_blockchain_info* blockchain_info_ptr = nullptr;
-    int target_network_id = 0; // Определим ID здесь
+    // Final network ID determined for this operation
+    int target_network_id = 0;
+    // Flag to indicate if we added a new blockchain entry to the config
     bool is_new_blockchain = false;
 
+    // If the blockchain was not found in the config
     if (!blockchain_ref_opt) {
-        is_new_blockchain = true;
-        std::cout << LOG_PREFIX << "Blockchain '" << blockchain_name_or_id << "' not found in config. Attempting to create..." << std::endl;
+        is_new_blockchain = true; // Mark that we are creating a new entry
+        std::cout << LOG_PREFIX << "'" << blockchain_name_or_id << "' not found. Trying to create..." << std::endl;
+        // Create a new structure to hold info
         neozork::config_manager::struct_blockchain_info new_bc;
-        std::string found_name = blockchain_name_or_id; // Изначально имя = введенная строка
-
-        // Пытаемся распознать ID
+        // Default name is the user input
+        std::string found_name = blockchain_name_or_id;
+        // Flag to check if input was successfully interpreted as an ID
         bool input_is_id = false;
-        try {
-             long long id_ll = std::stoll(blockchain_name_or_id);
-             if (id_ll > 0 && id_ll <= std::numeric_limits<int>::max()) {
-                 target_network_id = static_cast<int>(id_ll);
-                 input_is_id = true;
-                 std::cout << LOG_PREFIX << "Input interpreted as network ID: " << target_network_id << std::endl;
-             } else {
-                 target_network_id = 0; // Невалидный ID
-             }
-        } catch (...) { target_network_id = 0; /* Не число */ }
 
-        // Если пользователь ввел ID, пытаемся найти имя
-        if (input_is_id) {
-             // Скачиваем основной список сетей для поиска имени
-             std::optional<std::string> chain_list_json = download_master_chain_list();
-             if (chain_list_json) {
-                 std::optional<std::string> name_from_list = find_chain_name_from_id(*chain_list_json, target_network_id);
-                 if (name_from_list) {
-                     found_name = *name_from_list; // Используем найденное имя
-                     std::cout << LOG_PREFIX << "Found name '" << found_name << "' for ID " << target_network_id << " from master list." << std::endl;
-                 } else {
-                     std::cerr << LOG_PREFIX << "WARN: Could not find name for ID " << target_network_id << " in master list. Using ID as name." << std::endl;
-                     found_name = std::to_string(target_network_id); // Оставляем ID как имя
-                 }
-             } else {
-                 std::cerr << LOG_PREFIX << "WARN: Failed to download master list to find name for ID " << target_network_id << ". Using ID as name." << std::endl;
-                  found_name = std::to_string(target_network_id); // Оставляем ID как имя
-             }
-        } else {
-             // Пользователь ввел имя, ID пока неизвестен (0)
-             target_network_id = 0;
-              std::cerr << LOG_PREFIX << "WARN: Network ID for name '" << blockchain_name_or_id << "' is unknown (0). Chainlist filtering might fail." << std::endl;
+        // Try to interpret the input as a number (potential network ID)
+        try {
+            long long id_ll = std::stoll(blockchain_name_or_id);
+            // Check if the parsed ID is within a valid integer range
+            if (id_ll > 0 && id_ll <= std::numeric_limits<int>::max()) {
+                target_network_id = static_cast<int>(id_ll);
+                input_is_id = true;
+                std::cout << LOG_PREFIX << "Input interpreted as network ID: " << target_network_id << std::endl;
+            } else {
+                // Numeric input, but outside valid range
+                target_network_id = 0;
+                std::cerr << LOG_PREFIX << "WARN: Input '" << blockchain_name_or_id << "' invalid as network ID. Treating as name, ID unknown (0)." << std::endl;
+            }
+        } catch (...) {
+            // Input was not a number, treat as a name
+            target_network_id = 0;
+            input_is_id = false;
+            // std::cout << LOG_PREFIX << "Input is not a number. Treating as name." << std::endl; // Less verbose
         }
 
-        // Устанавливаем окончательные значения для новой записи
+        // If the input was identified as an ID, try to find the corresponding name
+        if (input_is_id) {
+            // Download the master chain list to perform the lookup
+            std::optional<std::string> chain_list_json = download_master_chain_list();
+            // If download succeeded
+            if (chain_list_json) {
+                // Try to find the name in the downloaded JSON
+                std::optional<std::string> name_from_list = find_chain_name_from_id(*chain_list_json, target_network_id);
+                // If a name was found
+                if (name_from_list) {
+                    found_name = *name_from_list; // Use the name found from the list
+                    std::cout << LOG_PREFIX << "Found Name '" << found_name << "' for ID " << target_network_id << "." << std::endl;
+                } else {
+                    // Name not found for this ID in the list
+                    std::cerr << LOG_PREFIX << "WARN: Name for ID " << target_network_id << " not found. Using ID as name." << std::endl;
+                    found_name = std::to_string(target_network_id); // Use the ID number as the name string
+                }
+            } else {
+                // Failed to download the list for lookup
+                std::cerr << LOG_PREFIX << "WARN: Failed list download for name lookup. Using ID as name." << std::endl;
+                found_name = std::to_string(target_network_id); // Fallback to ID as name
+            }
+        } else {
+            // Input was a name, ID remains unknown (0)
+             target_network_id = 0;
+             std::cerr << LOG_PREFIX << "WARN: Input is name. Network ID unknown (0). Filtering might fail." << std::endl;
+        }
+
+        // Set the final determined name and ID for the new entry
         new_bc.name = found_name;
         new_bc.network_id = target_network_id;
 
-        // Добавляем в конфиг
+        // Attempt to add this new blockchain entry to the main config
         if (neozork::config_manager::add_blockchain(config, new_bc)) {
-             std::cout << LOG_PREFIX << "Successfully added new blockchain '" << new_bc.name << "' (ID: " << new_bc.network_id << ") to config." << std::endl;
-             auto re_find = neozork::config_manager::find_blockchain(config, new_bc.name); // Ищем по имени для получения ссылки
-             if (re_find) { blockchain_info_ptr = &re_find.value().get(); }
-             else { /* Critical error */ std::cerr << "[Discovery] CRITICAL: Cannot re-find added blockchain!" << std::endl; return false; }
+            std::cout << LOG_PREFIX << "Added new blockchain '" << new_bc.name << "' (ID: " << new_bc.network_id << ")." << std::endl;
+            // We need a pointer to the newly added struct, so re-find it (by name should work now)
+            auto re_find = neozork::config_manager::find_blockchain(config, new_bc.name);
+            if (re_find) {
+                blockchain_info_ptr = &re_find.value().get();
+            } else {
+                // This indicates a serious internal inconsistency
+                std::cerr << "[Discovery] CRITICAL: Cannot re-find just added blockchain!" << std::endl;
+                return false;
+            }
         } else {
-             // Ошибка добавления (уже существует - такого не должно быть по идее)
-             std::cerr << "[Discovery] ERROR: Failed to add blockchain, but it wasn't found initially?" << std::endl;
-              // Попробуем найти снова на всякий случай
-              auto existing = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
-              if(existing) { blockchain_info_ptr = &existing.value().get(); is_new_blockchain = false; } // Нашли существующий
-              else { std::cerr << "[Discovery] CRITICAL: Cannot add or find blockchain!" << std::endl; return false; } // Все равно не нашли
+            // add_blockchain returned false, usually means it already existed (name or ID conflict)
+            std::cerr << "[Discovery] ERROR: Failed to add blockchain (already exists?). Trying to find existing..." << std::endl;
+            // Try to find the existing one again to proceed
+            auto existing = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+            if (existing) {
+                blockchain_info_ptr = &existing.value().get();
+                is_new_blockchain = false; // Mark that we are using an existing one after all
+                std::cout << LOG_PREFIX << "Proceeding with existing blockchain found: '" << blockchain_info_ptr->name << "'." << std::endl;
+            } else {
+                // Failed to add and cannot find it either
+                std::cerr << "[Discovery] CRITICAL: Cannot add or find blockchain!" << std::endl;
+                return false;
+            }
         }
     } else {
-        // Блокчейн уже существовал
+        // Blockchain was found initially
         blockchain_info_ptr = &blockchain_ref_opt.value().get();
-        target_network_id = blockchain_info_ptr->network_id; // Используем ID из конфига
-         std::cout << LOG_PREFIX << "Found existing blockchain '" << blockchain_info_ptr->name << "' (ID: " << target_network_id << ") in config." << std::endl;
+        target_network_id = blockchain_info_ptr->network_id; // Get ID from the existing entry
+         std::cout << LOG_PREFIX << "Found existing blockchain '" << blockchain_info_ptr->name << "' (ID: " << target_network_id << ")." << std::endl;
     }
 
-    // Финальная проверка указателя
-     if (!blockchain_info_ptr) { std::cerr << "[Discovery] CRITICAL: Blockchain info pointer is null." << std::endl; return false; }
-     neozork::config_manager::struct_blockchain_info& blockchain_info = *blockchain_info_ptr;
-     // Используем ID из структуры, так как он мог быть найден или установлен в 0
-     target_network_id = blockchain_info.network_id;
-     std::cout << LOG_PREFIX << "Processing discovery using Network ID: " << target_network_id << std::endl;
+    // Ensure we have a valid pointer to the blockchain info struct
+    if (!blockchain_info_ptr) {
+        std::cerr << "[Discovery] CRITICAL: No blockchain info pointer." << std::endl;
+        return false;
+    }
+    // Use a reference for easier access
+    neozork::config_manager::struct_blockchain_info& blockchain_info = *blockchain_info_ptr;
+    // Ensure target_network_id reflects the final ID in the struct (important if it was 0)
+    target_network_id = blockchain_info.network_id;
+    std::cout << LOG_PREFIX << "Processing discovery for '" << blockchain_info.name << "' using Network ID: " << target_network_id << std::endl;
 
-    // --- Остальная часть функции ---
+    // --- 2. Process Discovery Sources ---
+    // Counter for newly added endpoint entries for this run
     int total_added_count = 0;
+    // Start the progress bar for processing sources
     neozork::ui::start_progress("Processing Sources", static_cast<long long>(sources.size()));
+    // Index for updating the progress bar (1-based)
     int source_index = 0;
 
+    // Loop through each provided source (keyword or URL)
     for (const std::string& source : sources) {
-        // ... (логика обработки источников, скачивания, парсинга raw_urls - без изменений) ...
-         source_index++;
-         std::vector<std::string> raw_urls; std::string url_to_download; enum class PT {U,C,E,S,A} parser_to_use=PT::U; std::string ls=source; std::transform(ls.begin(),ls.end(),ls.begin(),[](unsigned char c){return std::tolower(c);});
-         if(ls=="chainlist"){url_to_download="https://chainid.network/chains.json";parser_to_use=PT::C;}else if(ls=="ethereum-lists"){url_to_download="https://...eip155-1.json";parser_to_use=PT::E;}else if(source.rfind("https://",0)==0||source.rfind("http://",0)==0){url_to_download=source;parser_to_use=PT::A;}else{std::cerr<<"\n"<<LOG_PREFIX<<"WARN: Unknown source: "<<source<<". Skip."<<std::endl; neozork::ui::update_progress(source_index); continue;}
-         neozork::connection_manager::connection_result download_result; if(!url_to_download.empty()){size_t hs=url_to_download.find("://");if(hs==std::string::npos){neozork::ui::update_progress(source_index); continue;}hs+=3;size_t ps=url_to_download.find('/',hs);std::string h,p;if(ps==std::string::npos){h=url_to_download.substr(hs);p="/";}else{h=url_to_download.substr(hs,ps-hs);p=url_to_download.substr(ps);}if(h.empty()){neozork::ui::update_progress(source_index); continue;} neozork::connection_manager::http_headers hdrs={{"User-Agent","N3D"},{"Accept","*/*"}}; download_result=neozork::connection_manager::https_get(h,p,hdrs); if(!(!download_result.error_message&&download_result.body.has_value())){std::cerr<<"\n"<<LOG_PREFIX<<"ERR download "<<url_to_download<<". Skip."<<std::endl;neozork::ui::update_progress(source_index); continue;}}else continue;
-         if(download_result.body){const std::string& rb=download_result.body.value(); switch(parser_to_use){case PT::C:raw_urls=parse_chainlist_rpcs_json(rb,target_network_id);break;case PT::E:raw_urls=parse_ethereum_lists_json(rb);break;case PT::A:try{if(json::accept(rb)){json jt=json::parse(rb);if(jt.is_array())raw_urls=parse_chainlist_rpcs_json(rb,target_network_id);else if(jt.is_object())raw_urls=parse_ethereum_lists_json(rb);if(raw_urls.empty())raw_urls=parse_simple_url_list(rb);}else raw_urls=parse_simple_url_list(rb);}catch(...){raw_urls=parse_simple_url_list(rb);}if(raw_urls.empty())std::cerr<<"\n"<<LOG_PREFIX<<"WARN: Auto-detect fail "<<source<<std::endl;break;case PT::S:raw_urls=parse_simple_url_list(rb);break;default:break;}}
+        source_index++; // Increment index
 
-        // Process parsed URLs
-        int added_from_this_source = 0;
-        for (const auto& raw_url : raw_urls) {
-            // ... (логика добавления эндпоинта в blockchain_info через add_endpoint) ...
-             std::string cleaned_url=trim_string(trim_quotes(raw_url));if(cleaned_url.empty()||contains_placeholder(cleaned_url))continue; auto ct_opt=get_connection_type_from_url(cleaned_url);if(!ct_opt)continue; std::string connection_type=ct_opt.value(); neozork::config_manager::struct_endpoint new_ep; new_ep.connection_urls[connection_type]=cleaned_url; if(neozork::config_manager::add_endpoint(blockchain_info, new_ep)) {added_from_this_source++;}
+        // Vector to store URLs parsed from the current source
+        std::vector<std::string> raw_urls;
+        // URL to download content from for this source
+        std::string url_to_download;
+        // Enum to determine which parsing function to use
+        enum class ParserType { UNKNOWN, CHAINLIST, ETH_LISTS, SIMPLE_LIST, AUTO_DETECT };
+        ParserType parser_to_use = ParserType::UNKNOWN;
+        // Convert source keyword to lowercase for easier matching
+        std::string lower_source = source;
+        std::transform(lower_source.begin(), lower_source.end(), lower_source.begin(), [](unsigned char c){ return std::tolower(c); });
+
+        // --- Determine parser type and download URL based on source keyword/URL ---
+        // Use short keywords 'chain' and 'eth'
+        if (lower_source == "chain") { // Changed from "chainlist"
+            url_to_download = "https://chainid.network/chains.json"; // Main list URL
+            parser_to_use = ParserType::CHAINLIST;
+        } else if (lower_source == "eth") { // Changed from "ethereum-lists"
+            url_to_download = "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-1.json"; // Fixed URL for mainnet
+            parser_to_use = ParserType::ETH_LISTS;
+            // Warn if target network ID is not Ethereum mainnet
+             if (target_network_id != 1 && target_network_id != 0) { // Allow ID 0 as unknown
+                 std::cerr << LOG_PREFIX << "WARNING: Using 'eth' source but target ID is " << target_network_id << ", not 1. Results might be incorrect." << std::endl;
+             }
+        } else if (source.rfind("https://", 0) == 0 || source.rfind("http://", 0) == 0) { // Check if source is a URL
+            url_to_download = source;
+            parser_to_use = ParserType::AUTO_DETECT; // Try to guess format based on content
+        } else {
+            // Unknown source keyword
+            std::cerr << "\n" << LOG_PREFIX << "WARN: Unknown source type: '" << source << "'. Valid keywords: 'chain', 'eth' or a URL. Skipping." << std::endl;
+            neozork::ui::update_progress(source_index); // Update progress even if skipping
+            continue; // Skip to the next source
         }
-        total_added_count += added_from_this_source;
-        // Обновляем прогресс после обработки одного источника
+
+        // --- Download Content ---
+        neozork::connection_manager::connection_result download_result;
+        if (!url_to_download.empty()) {
+            // Parse host and path from the download URL
+            size_t host_start = url_to_download.find("://");
+            if (host_start == std::string::npos) {
+                std::cerr << "\n" << LOG_PREFIX << "ERROR: Invalid URL scheme: " << url_to_download << std::endl;
+                neozork::ui::update_progress(source_index); continue;
+            }
+            host_start += 3;
+            size_t path_start = url_to_download.find('/', host_start);
+            std::string host, path;
+            if (path_start == std::string::npos) { host = url_to_download.substr(host_start); path = "/"; }
+            else { host = url_to_download.substr(host_start, path_start - host_start); path = url_to_download.substr(path_start); }
+            if (host.empty()) {
+                std::cerr << "\n" << LOG_PREFIX << "ERROR: Could not extract host from: " << url_to_download << std::endl;
+                neozork::ui::update_progress(source_index); continue;
+            }
+
+            // Perform HTTPS GET request
+            // std::cout << LOG_PREFIX << "Downloading from " << host << path << "..." << std::endl; // Less verbose
+            neozork::connection_manager::http_headers download_headers = {{"User-Agent", "N3D"},{"Accept", "*/*"}};
+            download_result = neozork::connection_manager::https_get(host, path, download_headers);
+
+            // Check if download failed at connection level or returned empty body
+            if (!download_result.body.has_value() || download_result.error_message) {
+                std::cerr << "\n" << LOG_PREFIX << "ERROR downloading " << url_to_download
+                          << (download_result.error_message ? " ("+ *download_result.error_message + ")" : "")
+                          << ". Skipping source." << std::endl;
+                neozork::ui::update_progress(source_index); // Update progress
+                continue; // Skip to next source
+            }
+        } else { continue; } // Skip if URL was somehow empty
+
+        // --- Parse Downloaded Content ---
+        if (download_result.body) {
+            const std::string& response_body = download_result.body.value();
+            // std::cout << LOG_PREFIX << "Parsing content..." << std::endl; // Less verbose
+
+            // Select appropriate parser based on source type
+            switch (parser_to_use) {
+                case ParserType::CHAINLIST:
+                    raw_urls = parse_chainlist_rpcs_json(response_body, target_network_id);
+                    break;
+                case ParserType::ETH_LISTS:
+                    raw_urls = parse_ethereum_lists_json(response_body);
+                    break;
+                case ParserType::AUTO_DETECT:
+                    // Try parsing as JSON (array or object), fallback to simple list
+                    try {
+                        if (json::accept(response_body)) {
+                            json jt = json::parse(response_body);
+                            if (jt.is_array()) raw_urls = parse_chainlist_rpcs_json(response_body, target_network_id);
+                            else if (jt.is_object()) raw_urls = parse_ethereum_lists_json(response_body);
+                            // If JSON parse didn't yield URLs, try simple list as fallback
+                            if (raw_urls.empty()) raw_urls = parse_simple_url_list(response_body);
+                        } else {
+                            raw_urls = parse_simple_url_list(response_body); // Not JSON, assume simple list
+                        }
+                    } catch (...) { // Catch any error during parsing/detection
+                        raw_urls = parse_simple_url_list(response_body); // Fallback
+                    }
+                    if (raw_urls.empty()) std::cerr << "\n" << LOG_PREFIX << "WARN: Auto-detect failed for " << source << std::endl;
+                    break;
+                case ParserType::SIMPLE_LIST:
+                    raw_urls = parse_simple_url_list(response_body);
+                    break;
+                default: /* Should not happen */ break;
+            }
+        } // End content parsing
+
+        // --- 3. Process Parsed URLs ---
+        int added_from_this_source = 0;
+        // Loop through URLs obtained from the current source
+        for (const auto& raw_url : raw_urls) {
+            // Clean up the URL string
+            std::string cleaned_url = trim_string(trim_quotes(raw_url));
+            // Skip if empty or contains placeholders
+            if (cleaned_url.empty() || contains_placeholder(cleaned_url)) continue;
+            // Determine connection type from URL scheme
+            auto connection_type_opt = get_connection_type_from_url(cleaned_url);
+            if (!connection_type_opt) continue; // Skip if type unknown
+            std::string connection_type = connection_type_opt.value();
+
+            // Create a minimal endpoint structure with just this URL/type
+            neozork::config_manager::struct_endpoint new_endpoint_entry;
+            new_endpoint_entry.connection_urls[connection_type] = cleaned_url;
+
+            // Attempt to add this endpoint to the blockchain's list; handles duplicates
+            if (neozork::config_manager::add_endpoint(blockchain_info, new_endpoint_entry)) {
+                added_from_this_source++; // Increment count if successfully added (not duplicate)
+            }
+        }
+        total_added_count += added_from_this_source; // Add count from this source to total
+        // Update progress bar after processing this source
         neozork::ui::update_progress(source_index);
 
-    } // end for source loop
+    } // End loop over sources
 
+    // Finish the progress bar display
     neozork::ui::finish_progress();
 
-    std::cout << "[Discovery] Endpoint discovery finished for blockchain '" << blockchain_info.name << "'. Total new endpoint entries added: " << total_added_count << "." << std::endl;
+    std::cout << "[Discovery] Discovery finished for '" << blockchain_info.name << "'. Added " << total_added_count << " new endpoint entries." << std::endl;
 
-    // Сохраняем конфиг только если были добавлены *новые* эндпоинты ИЛИ если был добавлен *новый* блокчейн
+    // --- 4. Save Config ---
+    // Save if a new blockchain was added OR if new endpoints were added
     if (total_added_count > 0 || is_new_blockchain) {
         try {
-            std::cout << "[Discovery] Saving updated configuration..." << std::endl;
+            std::cout << "[Discovery] Saving configuration..." << std::endl;
             neozork::config_manager::save_config(config);
-            std::cout << "[Discovery] Configuration saved successfully." << std::endl;
-        } catch (const std::exception& e) { /* ... error handling ... */ return false; }
+            std::cout << "[Discovery] Configuration saved." << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[Discovery] ERROR saving config: " << e.what() << std::endl;
+            return false; // Indicate failure if saving failed
+        }
     } else {
-         std::cout << "[Discovery] No new endpoints or blockchains added, configuration file not modified." << std::endl;
+        std::cout << "[Discovery] No changes made, config not saved." << std::endl;
     }
 
+    // Return true indicating the process completed
     return true;
 }
+
 } // namespace neozork::endpoint_discovery
