@@ -62,8 +62,6 @@ std::optional<std::string> extract_placeholder_name(const std::string& url) {
 
 
 // --- Parsing functions ---
-// (Keep the existing parsing functions: parse_simple_url_list, parse_ethereum_lists_json, parse_chainlist_rpcs_json)
-// --- REWRITTEN parse_chainlist_rpcs_json based on correct structure ---
 std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, int target_chain_id) {
     std::vector<std::string> urls;
     std::cout << LOG_PREFIX << "Parsing content as Chainlist RPCs JSON for target chain ID: " << target_chain_id << "..." << std::endl;
@@ -225,7 +223,7 @@ bool discover_endpoints(
             }
         } catch (const std::invalid_argument&) {
             std::cout << LOG_PREFIX << "Input '" << blockchain_name_or_id << "' is not a number. Will treat as name." << std::endl;
-            // Need to find ID based on name if possible (e.g. query chainlist?) - complex, do later.
+            // Need to find ID based on name if possible (e.g. query chain?) - complex, do later.
             // For now, set ID to 0 if name is given and not found.
             std::cerr << LOG_PREFIX << "WARNING: Could not determine network ID for name '" << blockchain_name_or_id << "'. Setting network ID to 0. This might prevent Chainlist filtering!" << std::endl;
             new_bc.network_id = 0; // Mark as unknown ID
@@ -294,18 +292,18 @@ bool discover_endpoints(
                        [](unsigned char c){ return std::tolower(c); });
         
         // --- Determine source type and download URL ---
-        if (lower_source == "chainlist") {
+        if (lower_source == "chain") {
             // Chainlist moved its main list, use the aggregate URL or specific chain files if possible
             url_to_download = "https://chainid.network/chains.json"; // This seems to be the replacement source often cited
             // Alternative could be https://github.com/DefiLlama/chainlist/tree/main/constants/extraRpcs
             parser_to_use = ParserType::CHAINLIST; // Keep using our parser, assuming similar structure or adapt parser
-            source_type_name = "Chainlist Keyword (using chainid.network)";
+            source_type_name = "Chain Keyword (using chainid.network)";
             std::cout << LOG_PREFIX << "Source identified as '" << source_type_name << "'. URL: " << url_to_download << std::endl;
-        } else if (lower_source == "ethereum-lists") {
+        } else if (lower_source == "eth") {
             // This URL seems stable for chain 1 (Ethereum Mainnet)
             url_to_download = "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-1.json";
             parser_to_use = ParserType::ETH_LISTS;
-            source_type_name = "Ethereum-Lists Keyword (Mainnet)";
+            source_type_name = "Eth Keyword (Mainnet)";
             // We might need a way to specify *which* chain file from ethereum-lists later
             if (target_network_id != 1 && target_network_id != 0) { // Allow ID 0 as unknown
                 std::cerr << LOG_PREFIX << "WARNING: Using ethereum-lists keyword but target network ID is " << target_network_id << ", not 1 (Ethereum Mainnet). Results might be incorrect." << std::endl;
@@ -317,7 +315,7 @@ bool discover_endpoints(
             source_type_name = "Direct URL";
             std::cout << LOG_PREFIX << "Source identified as '" << source_type_name << "'. URL: " << url_to_download << std::endl;
         } else {
-            std::cerr << LOG_PREFIX << "WARNING: Source '" << source << "' is not a recognized keyword ('chainlist', 'ethereum-lists') or http(s) URL. Skipping." << std::endl;
+            std::cerr << LOG_PREFIX << "WARNING: Source '" << source << "' is not a recognized keyword ('defi', 'chain', 'eth') or http(s) URL. Skipping." << std::endl;
             continue; // Skip this source
         }
         

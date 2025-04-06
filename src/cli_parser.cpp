@@ -52,9 +52,9 @@ void print_help() {
     << "                               Required by most commands involving a specific chain.\n"
     << "  -s, --source <keyword|url>   Specify discovery source for --discover-endpoints.\n"
     << "                               Can be used multiple times.\n"
-    << "                               Keywords: 'chainlist', 'ethereum-lists'.\n"
+    << "                               Keywords: 'defi', 'chain', 'eth'.\n"
     << "                               Or provide a direct http(s) URL to a JSON or text list.\n"
-    << "                               Defaults to 'chainlist' if omitted.\n"
+    << "                               Defaults to 'chain' if omitted.\n"
     << "      --endpoint <url>         Specify a single endpoint URL (required by\n"
     << "                               --scan-single-endpoint).\n"
     << "  -t, --connection-type <type>\n" // Added -t as short flag
