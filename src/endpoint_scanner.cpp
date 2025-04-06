@@ -3,6 +3,7 @@
 #include "endpoint_scanner.h"
 #include "config_manager.h"
 #include "connection_manager.h" // To make RPC calls
+#include "ui.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -178,6 +179,11 @@ void run_scan_endpoints(
     
     std::cout << "[Scanner] Found blockchain '" << bc_info.name << "'. Scanning " << bc_info.endpoints.size() << " configured endpoints..." << std::endl;
     
+    
+    // 1.1. Initialize progress bar
+    neozork::ui::start_progress("Scanning Endpoints", static_cast<long long>(bc_info.endpoints.size()));
+    
+    
     // 2. Iterate through endpoints and scan each
     int endpoint_index = 0;
     for (auto& endpoint : bc_info.endpoints) { // Need non-const reference to modify
@@ -211,7 +217,15 @@ void run_scan_endpoints(
         for (const auto& type_url_pair : types_to_scan_for_this_endpoint) {
             perform_scan_for_type(endpoint, type_url_pair.first, type_url_pair.second);
         }
+        
+        // 3. Update progress bar
+        neozork::ui::update_progress(endpoint_index);
+        
     } // end loop over endpoints
+    
+    
+    // 4. Finish progress bar
+    neozork::ui::finish_progress();
     
     std::cout << "[Scanner] Finished scanning endpoints for blockchain '" << bc_info.name << "'." << std::endl;
 }

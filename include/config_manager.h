@@ -1,6 +1,7 @@
 #ifndef NEOZORK3_CONFIG_MANAGER_H
 #define NEOZORK3_CONFIG_MANAGER_H
 
+#include <memory> // Defines std::allocator, std::allocator_traits
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -120,6 +121,29 @@ bool ensure_config_exists();
 void initialize_config();
 
 // --- Helpers ---
+
+// --- Update data ---
+bool update_endpoint_status(
+                            struct_endpoint& endpoint_ref,
+                            const std::string& connection_type_str,
+                            const struct_endpoint_connection_status& new_status
+                            );
+
+bool update_endpoint_block_number( // Already exists maybe? Keep it if used.
+                                  struct_endpoint& endpoint_ref,
+                                  long long block_number
+                                  );
+
+/**
+ * @brief Updates the measured average block speed for a blockchain.
+ * @param bc_info_ref Reference to the blockchain structure to update.
+ * @param speed_ms The calculated average block speed in milliseconds.
+ * @return True if update was successful (currently always true).
+ */
+bool update_blockchain_block_speed( // <-- Добавить объявление
+                                   struct_blockchain_info& bc_info_ref,
+                                   double speed_ms
+                                   );
 
 // --- Find Endpoint Functions ---
 
