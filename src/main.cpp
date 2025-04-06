@@ -17,6 +17,7 @@
 #include "ui.h"
 #include "command_handlers.h"
 
+using namespace neozork::ui::colors;
 
 // MAIN FUNCTION
 int main(int argc, char* argv[]) {
@@ -25,7 +26,7 @@ int main(int argc, char* argv[]) {
     auto start_time = std::chrono::high_resolution_clock::now();
     
     // Print program version
-    std::cout << "NeoZorK3 " << neozork::PROGRAM_VERSION << std::endl;
+    std::cout << cyan << "NeoZorK 3 " << bright_white << "BlockChain Arbitrage System " << bright_magenta << neozork::PROGRAM_VERSION << reset << std::endl;
     
     
     // Using namespaces for brevity within main

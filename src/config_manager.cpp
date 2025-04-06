@@ -494,20 +494,20 @@ bool add_blockchain(struct_config& config_ref, const struct_blockchain_info& new
         auto by_id = find_blockchain(config_ref, std::to_string(new_blockchain.network_id));
         if (by_id) {
             
-             // Find by ID, do not add
-             std::cerr << "Info: Blockchain with ID " << new_blockchain.network_id << " (Name: '" << by_id.value().get().name << "') already exists. Skipping add for '" << new_blockchain.name << "'." << std::endl;
-             return false;
+            // Find by ID, do not add
+            std::cerr << "Info: Blockchain with ID " << new_blockchain.network_id << " (Name: '" << by_id.value().get().name << "') already exists. Skipping add for '" << new_blockchain.name << "'." << std::endl;
+            return false;
         }
     }
     // Check by name always
     auto by_name = find_blockchain(config_ref, new_blockchain.name);
-     if (by_name) {
-         
-         // Find by name, do not add
-         std::cerr << "Info: Blockchain with Name '" << new_blockchain.name << "' (ID: " << by_name.value().get().network_id << ") already exists. Skipping add." << std::endl;
-         return false;
-     }
-
+    if (by_name) {
+        
+        // Find by name, do not add
+        std::cerr << "Info: Blockchain with Name '" << new_blockchain.name << "' (ID: " << by_name.value().get().network_id << ") already exists. Skipping add." << std::endl;
+        return false;
+    }
+    
     // Add the new blockchain
     config_ref.blockchains.push_back(new_blockchain);
     return true;
