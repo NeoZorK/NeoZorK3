@@ -64,6 +64,21 @@ void print_endpoint_details(
                 std::cout << ", Last Check: ";
                 print_value(status.last_check.value_or("N/A"));
                 
+                // Print Traffic Info (if available) on a new indented line
+                if (status.traffic_in_bytes.has_value() || status.traffic_out_bytes.has_value()) {
+                    std::cout << "        Traffic In/Out (bytes): ";
+                    print_value(status.traffic_in_bytes.value_or(0)); // Use overload for long long or optional
+                    std::cout << " / ";
+                    print_value(status.traffic_out_bytes.value_or(0)); // Use overload for long long or optional
+                    std::cout << std::endl;
+                }
+                
+                // Print RPC Response Size (if available) on a new indented line
+                if (status.rpc_response_size_bytes.has_value()) {
+                    std::cout << "        RPC Resp Size (bytes): ";
+                    print_value(status.rpc_response_size_bytes.value()); // Use overload for long long or optional
+                    std::cout << std::endl;
+                }
                 
             } else {
                 std::cout << "\n      Status: "; print_label("Not Scanned Yet");
