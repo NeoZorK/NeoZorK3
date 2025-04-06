@@ -502,7 +502,7 @@ find_or_create_blockchain_entry(
 }
 
 
-// --- NEW Helper Function: Process a Single Discovery Source ---
+// ---  Helper Function: Process a Single Discovery Source ---
 
 /**
  * @brief Downloads, parses, and processes endpoints from a single source URL or keyword.
@@ -642,20 +642,24 @@ bool discover_endpoints(
     std::cout << "[Discovery] Discovery finished for '" << blockchain_info.name << "'. Added " << total_added_count << " new endpoint entries." << std::endl;
 
     // --- 3. Save Config ---
-    // Save configuration if a new blockchain was created OR if new endpoints were added
-    if (total_added_count > 0 || is_new_blockchain) {
-        try {
-            std::cout << "[Discovery] Saving updated configuration..." << std::endl;
-            neozork::config_manager::save_config(config);
-            std::cout << "[Discovery] Configuration saved." << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "[Discovery] ERROR saving config: " << e.what() << std::endl;
-            return false; // Return failure if saving failed
+    if (total_added_count > 0) {
+            try {
+                std::cout << "[Discovery] Saving updated configuration (new endpoints added)..." << std::endl;
+                neozork::config_manager::save_config(config);
+                std::cout << "[Discovery] Configuration saved successfully." << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "[Discovery] ERROR saving config: " << e.what() << std::endl;
+                return false; // Ошибка сохранения
+            }
+        } else {
+            // Выводим сообщение, почему не сохраняем
+            if (is_new_blockchain) {
+                 // Это сообщение будет выведено для 'solana', т.к. она новая и эндпоинтов 0
+                 std::cout << "[Discovery] No endpoints found for the newly specified blockchain '" << blockchain_info.name << "'. Configuration not saved." << std::endl;
+            } else {
+                 std::cout << "[Discovery] No *new* endpoints added for existing blockchain '" << blockchain_info.name << "'. Configuration file not modified." << std::endl;
+            }
         }
-    } else {
-        // Log that no changes required saving
-        std::cout << "[Discovery] No changes made (no new blockchains or endpoints added), config not saved." << std::endl;
-    }
 
     // Return true to indicate the discovery process completed
     return true;
