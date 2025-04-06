@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <vector>
 #include <string>
+#include <limits>
 #include <stdexcept>
 #include <sstream>
 #include <algorithm> // for std::sort
@@ -64,59 +65,60 @@ void handle_show_endpoint_info(
 
 // --- Handler for SHOW_BLOCK_SPEEDS ---
 void handle_show_block_speeds(
-                              const neozork::config_manager::struct_config& config,
-                              const neozork::cli_parser::command_parameters& params)
+    const neozork::config_manager::struct_config& config,
+    const neozork::cli_parser::command_parameters& params)
 {
     (void)params;
-    
+
     neozork::ui::print_label("\n--- Measured Blockchain Speeds ---\n");
-    
+
     if (config.blockchains.empty()) {
         neozork::ui::print_value("No blockchains configured.\n");
         return;
     }
-    
+
+    // --- Determine column widths ---
     const int name_width = 20;
+    const int id_width = 10;
     const int speed_width = 20;
-    
-    // --- Print Header ---
+    const int total_width = name_width + id_width + speed_width;
+
+    // --- Print Table Header ---
     std::cout << std::left;
-    neozork::ui::print_label("Blockchain Name");
-    // Add padding
-    std::cout << std::string(name_width - std::string("Blockchain Name").length(), ' ');
-    
-    neozork::ui::print_label("Avg Block Speed");
-    std::cout << std::string(speed_width - std::string("Avg Block Speed").length(), ' ');
+
+    std::cout << neozork::ui::colors::white << std::setw(name_width) << "Blockchain Name" << neozork::ui::colors::reset;
+    std::cout << neozork::ui::colors::white << std::setw(id_width) << "Network ID" << neozork::ui::colors::reset;
+    std::cout << neozork::ui::colors::white << std::setw(speed_width) << "Avg Block Speed" << neozork::ui::colors::reset;
     std::cout << std::endl;
-    
-    // Print separator
-    neozork::ui::print_label(std::string(name_width + speed_width, '-'));
+
+    // Devider
+    neozork::ui::print_label(std::string(total_width, '-'));
     std::cout << std::endl;
-    
-    
-    // --- Print Blockchains ---
+
+    // --- Print blockchain speed info ---
     for (const auto& bc_info : config.blockchains) {
-        // Blockchain Name
+
         std::cout << neozork::ui::colors::bold_blue << std::left << std::setw(name_width) << bc_info.name << neozork::ui::colors::reset;
-        
-        // Speed
+
+        // ID
+        std::cout << neozork::ui::colors::blue << std::right << std::setw(id_width) << bc_info.network_id << neozork::ui::colors::reset;
+
+        // Print measured block speed
         std::cout << std::right << std::setw(speed_width);
         if (bc_info.block_speed_ms.has_value()) {
-            // Format the speed with 2 decimal places
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(2) << bc_info.block_speed_ms.value() << " ms";
-            
-            std::cout << neozork::ui::colors::red << ss.str() << neozork::ui::colors::reset;
+             std::stringstream ss;
+             ss << std::fixed << std::setprecision(2) << bc_info.block_speed_ms.value() << " ms";
+             std::cout << neozork::ui::colors::red << ss.str() << neozork::ui::colors::reset;
         } else {
             std::cout << neozork::ui::colors::bright_black << "Not Measured" << neozork::ui::colors::reset;
         }
         std::cout << std::endl;
     }
-    
-    neozork::ui::print_label(std::string(name_width + speed_width, '-'));
+
+    // Devider
+    neozork::ui::print_label(std::string(total_width, '-'));
     std::cout << std::endl;
 }
-
 // --- Handler for SHOW_ACTIVE_ENDPOINTS ---
 void handle_show_active_endpoints(
                                   const neozork::config_manager::struct_config& config,
