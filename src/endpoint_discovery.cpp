@@ -220,7 +220,7 @@ std::vector<std::string> parse_ethereum_lists_json(const std::string& content) {
 std::optional<std::string> find_chain_name_from_id(const std::string& json_content, int target_id) {
     // ID must be positive
     if (target_id <= 0) return std::nullopt;
-
+    
     try {
         json j = json::parse(json_content);
         // Ensure the top level is an array
@@ -228,7 +228,7 @@ std::optional<std::string> find_chain_name_from_id(const std::string& json_conte
             std::cerr << LOG_PREFIX << "WARN: Chain list JSON for name lookup is not an array." << std::endl;
             return std::nullopt;
         }
-
+        
         // Iterate through the array of chain objects
         for (const auto& chain_obj : j) {
             // Check if it's an object and contains the "chainId" key
@@ -258,7 +258,7 @@ std::optional<std::string> find_chain_name_from_id(const std::string& json_conte
         // Log other potential exceptions during processing
         std::cerr << LOG_PREFIX << "WARN: Error during chain name lookup: " << e.what() << std::endl;
     }
-
+    
     // Return empty optional if the ID was not found in the list or an error occurred
     return std::nullopt;
 }
@@ -274,13 +274,13 @@ std::optional<std::string> download_master_chain_list() {
     // URL for the master list
     std::string list_url = "https://chainid.network/chains.json";
     std::cout << LOG_PREFIX << "Attempting to download master chain list from: " << list_url << " (for name lookup)" << std::endl;
-
+    
     // Regex to parse scheme, host, and optional path from the URL
     // Supports http and https
     std::regex url_regex(R"(^(https?)://([^/]+)(/.*)?$)");
     std::smatch match;
     std::string scheme, host, path = "/"; // Default path is root
-
+    
     // Match the URL and extract components
     if (std::regex_match(list_url, match, url_regex) && match.size() >= 3) {
         scheme = match[1].str(); // http or https
@@ -294,13 +294,13 @@ std::optional<std::string> download_master_chain_list() {
         std::cerr << LOG_PREFIX << "ERROR: Could not parse master chain list URL: " << list_url << std::endl;
         return std::nullopt;
     }
-
+    
     // Prepare standard HTTP headers for the request
     neozork::connection_manager::http_headers headers = {
         {"User-Agent", "NeoZorK3_Discovery_Bot/" + neozork::PROGRAM_VERSION},
         {"Accept", "application/json, */*"} // Accept JSON primarily
     };
-
+    
     // Perform the download using the connection manager
     neozork::connection_manager::connection_result result;
     if (scheme == "https") {
@@ -310,7 +310,7 @@ std::optional<std::string> download_master_chain_list() {
         std::cerr << LOG_PREFIX << "ERROR: HTTP download not implemented for master chain list." << std::endl;
         return std::nullopt;
     }
-
+    
     // Check if the download was successful (no client error and body received)
     if (!result.error_message && result.body.has_value()) {
         std::cout << LOG_PREFIX << "Master chain list downloaded successfully." << std::endl;
@@ -319,7 +319,7 @@ std::optional<std::string> download_master_chain_list() {
     } else {
         // Log download failure details
         std::cerr << LOG_PREFIX << "ERROR: Failed to download master chain list: "
-                  << (result.error_message ? *result.error_message : "Unknown error") << std::endl;
+        << (result.error_message ? *result.error_message : "Unknown error") << std::endl;
         return std::nullopt;
     }
 }
@@ -337,12 +337,12 @@ std::optional<std::string> download_master_chain_list() {
  * @return True if the discovery process completed (doesn't guarantee endpoints were added), false on critical error.
  */
 bool discover_endpoints(
-    const std::string& blockchain_name_or_id,
-    const std::vector<std::string>& sources,
-    neozork::config_manager::struct_config& config)
+                        const std::string& blockchain_name_or_id,
+                        const std::vector<std::string>& sources,
+                        neozork::config_manager::struct_config& config)
 {
     std::cout << "[Discovery] Starting discovery for: '" << blockchain_name_or_id << "'..." << std::endl;
-
+    
     // --- 1. Find or Create Blockchain Entry ---
     // Attempt to find the blockchain in the config by the provided name or ID
     auto blockchain_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
@@ -352,7 +352,7 @@ bool discover_endpoints(
     int target_network_id = 0;
     // Flag to indicate if we added a new blockchain entry to the config
     bool is_new_blockchain = false;
-
+    
     // If the blockchain was not found in the config
     if (!blockchain_ref_opt) {
         is_new_blockchain = true; // Mark that we are creating a new entry
@@ -363,7 +363,7 @@ bool discover_endpoints(
         std::string found_name = blockchain_name_or_id;
         // Flag to check if input was successfully interpreted as an ID
         bool input_is_id = false;
-
+        
         // Try to interpret the input as a number (potential network ID)
         try {
             long long id_ll = std::stoll(blockchain_name_or_id);
@@ -383,7 +383,7 @@ bool discover_endpoints(
             input_is_id = false;
             // std::cout << LOG_PREFIX << "Input is not a number. Treating as name." << std::endl; // Less verbose
         }
-
+        
         // If the input was identified as an ID, try to find the corresponding name
         if (input_is_id) {
             // Download the master chain list to perform the lookup
@@ -408,14 +408,14 @@ bool discover_endpoints(
             }
         } else {
             // Input was a name, ID remains unknown (0)
-             target_network_id = 0;
-             std::cerr << LOG_PREFIX << "WARN: Input is name. Network ID unknown (0). Filtering might fail." << std::endl;
+            target_network_id = 0;
+            std::cerr << LOG_PREFIX << "WARN: Input is name. Network ID unknown (0). Filtering might fail." << std::endl;
         }
-
+        
         // Set the final determined name and ID for the new entry
         new_bc.name = found_name;
         new_bc.network_id = target_network_id;
-
+        
         // Attempt to add this new blockchain entry to the main config
         if (neozork::config_manager::add_blockchain(config, new_bc)) {
             std::cout << LOG_PREFIX << "Added new blockchain '" << new_bc.name << "' (ID: " << new_bc.network_id << ")." << std::endl;
@@ -447,9 +447,9 @@ bool discover_endpoints(
         // Blockchain was found initially
         blockchain_info_ptr = &blockchain_ref_opt.value().get();
         target_network_id = blockchain_info_ptr->network_id; // Get ID from the existing entry
-         std::cout << LOG_PREFIX << "Found existing blockchain '" << blockchain_info_ptr->name << "' (ID: " << target_network_id << ")." << std::endl;
+        std::cout << LOG_PREFIX << "Found existing blockchain '" << blockchain_info_ptr->name << "' (ID: " << target_network_id << ")." << std::endl;
     }
-
+    
     // Ensure we have a valid pointer to the blockchain info struct
     if (!blockchain_info_ptr) {
         std::cerr << "[Discovery] CRITICAL: No blockchain info pointer." << std::endl;
@@ -460,7 +460,7 @@ bool discover_endpoints(
     // Ensure target_network_id reflects the final ID in the struct (important if it was 0)
     target_network_id = blockchain_info.network_id;
     std::cout << LOG_PREFIX << "Processing discovery for '" << blockchain_info.name << "' using Network ID: " << target_network_id << std::endl;
-
+    
     // --- 2. Process Discovery Sources ---
     // Counter for newly added endpoint entries for this run
     int total_added_count = 0;
@@ -468,11 +468,11 @@ bool discover_endpoints(
     neozork::ui::start_progress("Processing Sources", static_cast<long long>(sources.size()));
     // Index for updating the progress bar (1-based)
     int source_index = 0;
-
+    
     // Loop through each provided source (keyword or URL)
     for (const std::string& source : sources) {
         source_index++; // Increment index
-
+        
         // Vector to store URLs parsed from the current source
         std::vector<std::string> raw_urls;
         // URL to download content from for this source
@@ -483,7 +483,7 @@ bool discover_endpoints(
         // Convert source keyword to lowercase for easier matching
         std::string lower_source = source;
         std::transform(lower_source.begin(), lower_source.end(), lower_source.begin(), [](unsigned char c){ return std::tolower(c); });
-
+        
         // --- Determine parser type and download URL based on source keyword/URL ---
         // Use short keywords 'chain' and 'eth'
         if (lower_source == "chain") { // Changed from "chainlist"
@@ -493,9 +493,9 @@ bool discover_endpoints(
             url_to_download = "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-1.json"; // Fixed URL for mainnet
             parser_to_use = ParserType::ETH_LISTS;
             // Warn if target network ID is not Ethereum mainnet
-             if (target_network_id != 1 && target_network_id != 0) { // Allow ID 0 as unknown
-                 std::cerr << LOG_PREFIX << "WARNING: Using 'eth' source but target ID is " << target_network_id << ", not 1. Results might be incorrect." << std::endl;
-             }
+            if (target_network_id != 1 && target_network_id != 0) { // Allow ID 0 as unknown
+                std::cerr << LOG_PREFIX << "WARNING: Using 'eth' source but target ID is " << target_network_id << ", not 1. Results might be incorrect." << std::endl;
+            }
         } else if (source.rfind("https://", 0) == 0 || source.rfind("http://", 0) == 0) { // Check if source is a URL
             url_to_download = source;
             parser_to_use = ParserType::AUTO_DETECT; // Try to guess format based on content
@@ -505,7 +505,7 @@ bool discover_endpoints(
             neozork::ui::update_progress(source_index); // Update progress even if skipping
             continue; // Skip to the next source
         }
-
+        
         // --- Download Content ---
         neozork::connection_manager::connection_result download_result;
         if (!url_to_download.empty()) {
@@ -524,27 +524,27 @@ bool discover_endpoints(
                 std::cerr << "\n" << LOG_PREFIX << "ERROR: Could not extract host from: " << url_to_download << std::endl;
                 neozork::ui::update_progress(source_index); continue;
             }
-
+            
             // Perform HTTPS GET request
             // std::cout << LOG_PREFIX << "Downloading from " << host << path << "..." << std::endl; // Less verbose
             neozork::connection_manager::http_headers download_headers = {{"User-Agent", "N3D"},{"Accept", "*/*"}};
             download_result = neozork::connection_manager::https_get(host, path, download_headers);
-
+            
             // Check if download failed at connection level or returned empty body
             if (!download_result.body.has_value() || download_result.error_message) {
                 std::cerr << "\n" << LOG_PREFIX << "ERROR downloading " << url_to_download
-                          << (download_result.error_message ? " ("+ *download_result.error_message + ")" : "")
-                          << ". Skipping source." << std::endl;
+                << (download_result.error_message ? " ("+ *download_result.error_message + ")" : "")
+                << ". Skipping source." << std::endl;
                 neozork::ui::update_progress(source_index); // Update progress
                 continue; // Skip to next source
             }
         } else { continue; } // Skip if URL was somehow empty
-
+        
         // --- Parse Downloaded Content ---
         if (download_result.body) {
             const std::string& response_body = download_result.body.value();
             // std::cout << LOG_PREFIX << "Parsing content..." << std::endl; // Less verbose
-
+            
             // Select appropriate parser based on source type
             switch (parser_to_use) {
                 case ParserType::CHAINLIST:
@@ -576,7 +576,7 @@ bool discover_endpoints(
                 default: /* Should not happen */ break;
             }
         } // End content parsing
-
+        
         // --- 3. Process Parsed URLs ---
         int added_from_this_source = 0;
         // Loop through URLs obtained from the current source
@@ -589,11 +589,11 @@ bool discover_endpoints(
             auto connection_type_opt = get_connection_type_from_url(cleaned_url);
             if (!connection_type_opt) continue; // Skip if type unknown
             std::string connection_type = connection_type_opt.value();
-
+            
             // Create a minimal endpoint structure with just this URL/type
             neozork::config_manager::struct_endpoint new_endpoint_entry;
             new_endpoint_entry.connection_urls[connection_type] = cleaned_url;
-
+            
             // Attempt to add this endpoint to the blockchain's list; handles duplicates
             if (neozork::config_manager::add_endpoint(blockchain_info, new_endpoint_entry)) {
                 added_from_this_source++; // Increment count if successfully added (not duplicate)
@@ -602,29 +602,33 @@ bool discover_endpoints(
         total_added_count += added_from_this_source; // Add count from this source to total
         // Update progress bar after processing this source
         neozork::ui::update_progress(source_index);
-
+        
     } // End loop over sources
-
+    
     // Finish the progress bar display
     neozork::ui::finish_progress();
-
+    
     std::cout << "[Discovery] Discovery finished for '" << blockchain_info.name << "'. Added " << total_added_count << " new endpoint entries." << std::endl;
-
+    
     // --- 4. Save Config ---
-    // Save if a new blockchain was added OR if new endpoints were added
-    if (total_added_count > 0 || is_new_blockchain) {
+    if (total_added_count > 0) {
         try {
-            std::cout << "[Discovery] Saving configuration..." << std::endl;
+            std::cout << "[Discovery] Saving updated configuration (new endpoints added)..." << std::endl;
             neozork::config_manager::save_config(config);
-            std::cout << "[Discovery] Configuration saved." << std::endl;
+            std::cout << "[Discovery] Configuration saved successfully." << std::endl;
         } catch (const std::exception& e) {
-            std::cerr << "[Discovery] ERROR saving config: " << e.what() << std::endl;
-            return false; // Indicate failure if saving failed
+            std::cerr << "[Discovery] ERROR saving config after discovery: " << e.what() << std::endl;
+            return false;
         }
     } else {
-        std::cout << "[Discovery] No changes made, config not saved." << std::endl;
+        // No new endpoints added
+        if (is_new_blockchain) {
+            std::cout << "[Discovery] No endpoints found for the newly specified blockchain '" << blockchain_info.name << "'. Configuration not saved." << std::endl;
+        } else {
+            std::cout << "[Discovery] No *new* endpoints added for existing blockchain '" << blockchain_info.name << "'. Configuration file not modified." << std::endl;
+        }
     }
-
+    
     // Return true indicating the process completed
     return true;
 }
