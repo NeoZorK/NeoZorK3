@@ -219,7 +219,7 @@ void create_default_config(const std::filesystem::path& path) {
     
     // --- Example 5: Sonic ---
     struct_blockchain_info sonic;
-    sonic.name = "Sonic";
+    sonic.name = "Sonic Testnet";
     sonic.network_id = 64165;
     struct_endpoint sonic_rpc1;
     
