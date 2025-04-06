@@ -202,10 +202,12 @@ std::vector<std::string> parse_ethereum_lists_json(const std::string& content) {
  * @return std::optional<std::string> The found name, or nullopt if not found or error.
  */
 std::optional<std::string> find_chain_name_from_id(const std::string& json_content, int target_id) {
-    if (target_id <= 0) return std::nullopt; // ID должен быть положительным
+    // ID must be positive
+    if (target_id <= 0) return std::nullopt;
 
     try {
         json j = json::parse(json_content);
+        // Ensure the top level is an array
         if (!j.is_array()) {
              std::cerr << LOG_PREFIX << "WARN: Chain list JSON for name lookup is not an array." << std::endl;
             return std::nullopt;
@@ -213,20 +215,35 @@ std::optional<std::string> find_chain_name_from_id(const std::string& json_conte
 
         // Iterate through the array of chain objects
         for (const auto& chain_obj : j) {
+            // Check if it's an object and contains the "chainId" key
             if (chain_obj.is_object() && chain_obj.contains("chainId")) {
+                // Get the ID value, default to -1 if not convertible
                 int current_id = chain_obj.value("chainId", -1);
+                // If the ID matches the target ID
                 if (current_id == target_id) {
-                    return chain_obj.value("name", std::optional<std::string>());
+                    // --- CORRECTED SECTION ---
+                    // Check if the "name" key exists and its value is a string
+                    if (chain_obj.contains("name") && chain_obj.at("name").is_string()) {
+                        // Return the name string wrapped in std::optional
+                        return chain_obj.at("name").get<std::string>();
+                    } else {
+                        // Name key is missing or is not a string type
+                        std::cerr << LOG_PREFIX << "WARN: Found matching ID " << target_id << " but 'name' key is missing or not a string." << std::endl;
+                        return std::nullopt; // Return empty optional as name is invalid/missing
+                    }
+                    // --- END CORRECTED SECTION ---
                 }
             }
         }
     } catch (const json::parse_error& e) {
+        // Log JSON parsing errors
         std::cerr << LOG_PREFIX << "WARN: Failed to parse chain list JSON for name lookup: " << e.what() << std::endl;
     } catch (const std::exception& e) {
+        // Log other potential exceptions during processing
         std::cerr << LOG_PREFIX << "WARN: Error during chain name lookup: " << e.what() << std::endl;
     }
 
-    // If we reach here, either the ID was not found or an error occurred
+    // Return empty optional if the ID was not found in the list or an error occurred
     return std::nullopt;
 }
 
