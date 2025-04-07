@@ -123,6 +123,63 @@ void print_endpoint_details(
     std::cout << "----------------------------------------" << std::endl;
 }
 
+/**
+ * @brief Prints detailed information about a DEX.
+ * @param bc_info Blockchain info where the DEX resides.
+ * @param dex The DEX structure to print.
+ */
+void print_dex_details(
+                       const neozork::config_manager::struct_blockchain_info& bc_info,
+                       const neozork::config_manager::struct_dex_info& dex)
+{
+    // Header for DEX match
+    print_label("--- DEX Match Found ---\n");
+    
+    
+    // Blockchain context
+    print_label("  Blockchain: ");
+    print_blockchain_info(bc_info.name + " (ID: " + std::to_string(bc_info.network_id) + ")");
+    std::cout << std::endl;
+    
+    
+    // DEX Name
+    print_label("  DEX Name:   ");
+    print_value(dex.name);
+    std::cout << std::endl;
+    
+    
+    // DEX ID
+    print_label("  DEX ID:     ");
+    print_value(dex.id);
+    std::cout << std::endl;
+    
+    
+    // Factory Address
+    print_label("  Factory:    ");
+    // Use print_value overload for optional<string> if available, otherwise check manually
+    if (dex.factory_address.has_value()) {
+        print_value(dex.factory_address.value());
+    } else {
+        print_value("N/A");
+    }
+    std::cout << std::endl;
+    
+    
+    // Router Address
+    print_label("  Router:     ");
+    if (dex.router_address.has_value()) {
+        print_value(dex.router_address.value());
+    } else {
+        print_value("N/A");
+    }
+    std::cout << std::endl;
+    
+    
+    // Separator line
+    std::cout << "----------------------------------------" << std::endl;
+    
+}
+
 // --- Progress Bar Implementations ---
 void start_progress(const std::string& label, long long total_items) {
     // Reset state for a new bar
