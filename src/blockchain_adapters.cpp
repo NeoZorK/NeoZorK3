@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <algorithm>
+#include <functional>
 #include <map>
 #include <stdexcept>
 #include <chrono>       // For timing and sleep
@@ -18,10 +20,109 @@
 
 using json = nlohmann::json;
 
-namespace neozork::blockchain_adapters {
-
 // Define a prefix for log messages originating from this module
 #define LOG_PREFIX_ADAPTER "    [Adapter] "
+
+
+namespace { // Anonymous namespace for helper function
+
+// Helper to try eth_call with failover on sorted active endpoints
+// Returns the successful response body (hex string "0x...") or nullopt if all endpoints failed
+std::optional<std::string> try_eth_call_with_failover(
+                                                      const neozork::config_manager::struct_blockchain_info& bc_info,
+                                                      const std::string& contract_address,
+                                                      const std::string& encoded_data)
+{
+    // 1. Get sorted active HTTPS endpoints
+    auto active_endpoints_ref = neozork::config_manager::get_active_endpoints(bc_info, "https");
+    
+    // Sort by latency (ascending, nulls last)
+    std::sort(active_endpoints_ref.begin(), active_endpoints_ref.end(),
+              [](const auto& a_ref, const auto& b_ref) {
+        const auto& a = a_ref.get();
+        const auto& b = b_ref.get();
+        std::optional<double> latency_a;
+        auto ita = a.status.find("https");
+        if (ita != a.status.end()) latency_a = ita->second.latency_ms;
+        
+        std::optional<double> latency_b;
+        auto itb = b.status.find("https");
+        if (itb != b.status.end()) latency_b = itb->second.latency_ms;
+        
+        if (latency_a.has_value() && latency_b.has_value()) return *latency_a < *latency_b;
+        if (latency_a.has_value()) return true; // a has latency, b doesn't -> a comes first
+        if (latency_b.has_value()) return false; // b has latency, a doesn't -> b comes first
+        return false; // Neither has latency, order doesn't strictly matter
+    });
+    
+    if (active_endpoints_ref.empty()) {
+        std::cerr << LOG_PREFIX_ADAPTER << "ERROR: No active HTTPS endpoints found for eth_call." << std::endl;
+        return std::nullopt;
+    }
+    
+    // 2. Loop through endpoints trying the call
+    for (const auto& ep_ref : active_endpoints_ref) {
+        const auto& endpoint = ep_ref.get();
+        auto url_it = endpoint.connection_urls.find("https");
+        if (url_it == endpoint.connection_urls.end()) continue; // Should not happen if get_active_endpoints worked
+        const std::string& current_endpoint_url = url_it->second;
+        
+        std::cout << LOG_PREFIX_ADAPTER << "  Attempting eth_call via: " << current_endpoint_url << "..." << std::endl;
+        
+        try {
+            auto result = neozork::connection_manager::send_eth_call(current_endpoint_url, contract_address, encoded_data);
+            
+            // Check for connection manager level errors
+            if (result.error_message) {
+                std::cerr << LOG_PREFIX_ADAPTER << "  -> Network/HTTP Error: " << *result.error_message << ". Trying next endpoint." << std::endl;
+                continue; // Try next endpoint
+            }
+            
+            // Check for empty body
+            if (!result.body || result.body.value().empty()) {
+                std::cerr << LOG_PREFIX_ADAPTER << "  -> Empty response body received. Trying next endpoint." << std::endl;
+                continue; // Try next endpoint
+            }
+            
+            const std::string& response_body = result.body.value();
+            
+            // Check for JSON RPC error within the body
+            try {
+                json j = json::parse(response_body);
+                if (j.is_object() && j.contains("error") && !j["error"].is_null()) {
+                    std::cerr << LOG_PREFIX_ADAPTER << "  -> RPC Error received: " << j["error"].dump() << ". Trying next endpoint." << std::endl;
+                    continue; // Try next endpoint
+                }
+            } catch (const json::parse_error&) {
+                // Not a JSON object, might be the hex result directly (or garbage)
+                // Proceed to hex validation below
+            }
+            
+            // Validate if it looks like a valid hex result "0x..."
+            if (response_body.length() >= 2 && response_body.rfind("0x", 0) == 0) {
+                // Basic validation passed, return the result body
+                std::cout << LOG_PREFIX_ADAPTER << "  -> Call successful." << std::endl;
+                return response_body;
+            } else {
+                std::cerr << LOG_PREFIX_ADAPTER << "  -> Invalid/unexpected response format: " << response_body << ". Trying next endpoint." << std::endl;
+                continue; // Try next endpoint
+            }
+            
+        } catch (const std::exception& e) {
+            // Catch exceptions during send_eth_call itself (e.g., URL parsing)
+            std::cerr << LOG_PREFIX_ADAPTER << "  -> Exception during eth_call: " << e.what() << ". Trying next endpoint." << std::endl;
+            continue; // Try next endpoint
+        }
+    } // End loop over endpoints
+    
+    // If loop finishes without returning, all endpoints failed
+    std::cerr << LOG_PREFIX_ADAPTER << "ERROR: eth_call failed on all available endpoints." << std::endl;
+    return std::nullopt; // Indicate failure
+}
+
+} // End anonymous namespace
+
+namespace neozork::blockchain_adapters {
 
 // --- Helper function get_latest_block_number (без изменений) ---
 std::optional<long long> get_latest_block_number(const std::string& endpoint_url) {
@@ -66,12 +167,12 @@ std::optional<long long> get_latest_block_number(const std::string& endpoint_url
 
 // --- Implementation for measure_block_speed  ---
 std::optional<double> measure_block_speed(
-    neozork::config_manager::struct_config& config,
-    const std::string& blockchain_name_or_id)
+                                          neozork::config_manager::struct_config& config,
+                                          const std::string& blockchain_name_or_id)
 {
     auto overall_start_time = std::chrono::high_resolution_clock::now();
     std::cout << "[Adapter] Measuring block speed for blockchain: '" << blockchain_name_or_id << "'" << std::endl;
-
+    
     // 1. Find the blockchain
     auto bc_info_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
     if (!bc_info_ref_opt) {
@@ -79,87 +180,87 @@ std::optional<double> measure_block_speed(
     }
     // Get a reference to the blockchain
     neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get();
-
+    
     // 2. Get the list of potentially active endpoints (const links)
     auto active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "https");
     if (active_endpoints.empty()) {
-         std::cout << "[Adapter] No active HTTPS endpoints found. Checking for other active types..." << std::endl;
-         active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "any");
+        std::cout << "[Adapter] No active HTTPS endpoints found. Checking for other active types..." << std::endl;
+        active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "any");
     }
-
+    
     if (active_endpoints.empty()) {
-         std::cerr << "[Adapter] Error: No active endpoints found for blockchain '" << bc_info.name << "' to measure block speed." << std::endl;
-         auto overall_end_time = std::chrono::high_resolution_clock::now();
-         auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
-         std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
-         return std::nullopt;
+        std::cerr << "[Adapter] Error: No active endpoints found for blockchain '" << bc_info.name << "' to measure block speed." << std::endl;
+        auto overall_end_time = std::chrono::high_resolution_clock::now();
+        auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
+        std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
+        return std::nullopt;
     }
-
+    
     std::cout << "[Adapter] Found " << active_endpoints.size() << " potentially suitable active endpoint(s). Attempting measurement..." << std::endl;
-
+    
     // 3. Iterate through active endpoints and attempt measurement
     for (size_t idx = 0; idx < active_endpoints.size(); ++idx) {
         // use a const reference to the endpoint
         const auto& endpoint_const_ref = active_endpoints[idx].get();
         std::string endpoint_url_to_use;
         std::string endpoint_type_to_use;
-
+        
         // --- Find a suitable URL (prioritize https) ---
         auto https_it = endpoint_const_ref.connection_urls.find("https");
         if (https_it != endpoint_const_ref.connection_urls.end()) {
             endpoint_url_to_use = https_it->second;
             endpoint_type_to_use = "https";
         } else {
-             std::cerr << "[Adapter] Skipping endpoint " << (idx + 1) << "/" << active_endpoints.size()
-                       << " (no HTTPS URL found, other types not supported yet for measurement)." << std::endl;
-             continue;
+            std::cerr << "[Adapter] Skipping endpoint " << (idx + 1) << "/" << active_endpoints.size()
+            << " (no HTTPS URL found, other types not supported yet for measurement)." << std::endl;
+            continue;
         }
-
+        
         std::cout << "[Adapter] Attempting measurement using endpoint " << (idx + 1) << "/" << active_endpoints.size()
-                  << " (Type: " << endpoint_type_to_use << ", URL: " << endpoint_url_to_use << ")" << std::endl;
-
+        << " (Type: " << endpoint_type_to_use << ", URL: " << endpoint_url_to_use << ")" << std::endl;
+        
         // --- Perform Sampling ---
         const int num_samples = 11;
         const std::chrono::seconds delay_between_samples(1);
         std::vector<std::pair<std::chrono::system_clock::time_point, long long>> block_samples;
         long long last_block = -1;
         bool sample_fetch_failed = false;
-
+        
         std::cout << "  [Adapter] Gathering " << num_samples << " block number samples..." << std::endl;
         for (int i = 0; i < num_samples; ++i) {
-
-             auto fetch_time = std::chrono::system_clock::now();
-             std::optional<long long> current_block_opt = get_latest_block_number(endpoint_url_to_use);
-
-             if (current_block_opt) {
-                  long long current_block = *current_block_opt;
-                  std::cout << "    Sample " << std::setw(2) << (i + 1) << "/" << num_samples << ": Block " << current_block << std::endl;
-                  if (current_block > last_block || last_block == -1) {
-                      block_samples.push_back({fetch_time, current_block});
-                      last_block = current_block;
-                  } else {
-                       std::cout << "    (Block number unchanged)" << std::endl;
-                  }
-             } else {
-                 std::cerr << "    [Adapter] Warning: Failed to fetch block number sample " << (i + 1) << " using " << endpoint_url_to_use << ". Stopping sampling for this endpoint." << std::endl;
-                 sample_fetch_failed = true;
-                 break;
-             }
-
-             if (i < num_samples - 1) {
-                 std::this_thread::sleep_for(delay_between_samples);
-             }
+            
+            auto fetch_time = std::chrono::system_clock::now();
+            std::optional<long long> current_block_opt = get_latest_block_number(endpoint_url_to_use);
+            
+            if (current_block_opt) {
+                long long current_block = *current_block_opt;
+                std::cout << "    Sample " << std::setw(2) << (i + 1) << "/" << num_samples << ": Block " << current_block << std::endl;
+                if (current_block > last_block || last_block == -1) {
+                    block_samples.push_back({fetch_time, current_block});
+                    last_block = current_block;
+                } else {
+                    std::cout << "    (Block number unchanged)" << std::endl;
+                }
+            } else {
+                std::cerr << "    [Adapter] Warning: Failed to fetch block number sample " << (i + 1) << " using " << endpoint_url_to_use << ". Stopping sampling for this endpoint." << std::endl;
+                sample_fetch_failed = true;
+                break;
+            }
+            
+            if (i < num_samples - 1) {
+                std::this_thread::sleep_for(delay_between_samples);
+            }
         }
-
+        
         if (sample_fetch_failed) {
-             std::cerr << "[Adapter] Failed to gather sufficient samples using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
-             continue;
+            std::cerr << "[Adapter] Failed to gather sufficient samples using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
+            continue;
         }
         if (block_samples.size() < 2) {
-             std::cerr << "[Adapter] Error: Not enough valid block samples gathered (< 2) using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
-             continue;
+            std::cerr << "[Adapter] Error: Not enough valid block samples gathered (< 2) using " << endpoint_url_to_use << ". Trying next endpoint if available." << std::endl;
+            continue;
         }
-
+        
         // --- Calculate block time ---
         std::vector<double> block_time_intervals_ms;
         long long total_blocks_diff = 0;
@@ -179,32 +280,32 @@ std::optional<double> measure_block_speed(
             continue;
         }
         double total_time_valid_intervals_ms = 0;
-         for (size_t i = 1; i < block_samples.size(); ++i) {
-             if (block_samples[i].second - block_samples[i-1].second > 0) {
-                  auto time_diff = block_samples[i].first - block_samples[i-1].first;
-                  total_time_valid_intervals_ms += std::chrono::duration_cast<std::chrono::microseconds>(time_diff).count() / 1000.0;
-             }
-         }
+        for (size_t i = 1; i < block_samples.size(); ++i) {
+            if (block_samples[i].second - block_samples[i-1].second > 0) {
+                auto time_diff = block_samples[i].first - block_samples[i-1].first;
+                total_time_valid_intervals_ms += std::chrono::duration_cast<std::chrono::microseconds>(time_diff).count() / 1000.0;
+            }
+        }
         double average_block_time_ms = total_time_valid_intervals_ms / static_cast<double>(total_blocks_diff);
-
-
+        
+        
         // --- Successful Measurement ---
         std::cout << "[Adapter] Measurement successful using " << endpoint_url_to_use << std::endl;
         std::cout << "[Adapter] Calculated average block time: " << average_block_time_ms << " ms (" << block_time_intervals_ms.size() << " intervals, " << total_blocks_diff << " blocks total)" << std::endl;
-
+        
         // --- Update Config ---
         if (neozork::config_manager::update_blockchain_block_speed(bc_info, average_block_time_ms)) {
             std::cout << "[Adapter] Updated blockchain block speed in configuration." << std::endl;
         } else {
-             std::cerr << "[Adapter] Warning: Failed to update block speed in configuration object." << std::endl;
+            std::cerr << "[Adapter] Warning: Failed to update block speed in configuration object." << std::endl;
         }
-
+        
         // --- >>> Update Endpoint Config <<< ---
         long long latest_block_measured = block_samples.back().second;
-
+        
         // Find mutable reference to endpoint
         auto mutable_endpoint_ref_opt = neozork::config_manager::find_endpoint_by_any_url(bc_info, endpoint_url_to_use);
-
+        
         if (mutable_endpoint_ref_opt) {
             // Update last block number
             if (neozork::config_manager::update_endpoint_block_number(mutable_endpoint_ref_opt.value().get(), latest_block_measured)) {
@@ -216,17 +317,17 @@ std::optional<double> measure_block_speed(
             std::cerr << "[Adapter] Internal Error: Could not find mutable reference for endpoint " << endpoint_url_to_use << " to update last block number." << std::endl;
         }
         // --- >>>END OF Endpoint Config Update <<< ---
-
-
+        
+        
         // --- Successful Measurement ---
         auto overall_end_time = std::chrono::high_resolution_clock::now();
         auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
         std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
-
+        
         return average_block_time_ms;
-
+        
     } // --- END OF MEASUREMENT LOOP ---
-
+    
     // If we get here, measurement failed
     std::cerr << "[Adapter] Error: Failed to measure block speed using all available active endpoints for blockchain '" << bc_info.name << "'." << std::endl;
     auto overall_end_time = std::chrono::high_resolution_clock::now();
@@ -315,11 +416,11 @@ const std::map<int, std::vector<known_dex_entry>> hardcoded_known_dexes = {
  * @throws std::runtime_error on configuration errors.
  */
 bool discover_dexes_for_blockchain(
-    neozork::config_manager::struct_config& config,
-    const std::string& blockchain_name_or_id)
+                                   neozork::config_manager::struct_config& config,
+                                   const std::string& blockchain_name_or_id)
 {
     std::cout << LOG_PREFIX_ADAPTER << "Starting DEX discovery for blockchain: '" << blockchain_name_or_id << "'" << std::endl;
-
+    
     // 1. Find the blockchain (mutable reference needed to add DEXes)
     auto bc_info_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
     if (!bc_info_ref_opt) {
@@ -329,17 +430,17 @@ bool discover_dexes_for_blockchain(
     }
     // Get a mutable reference to the blockchain info
     neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get();
-
+    
     // 2. Check if DEXes are known for this chain ID
     auto known_dexes_it = hardcoded_known_dexes.find(bc_info.network_id);
     if (known_dexes_it == hardcoded_known_dexes.end()) {
         std::cout << LOG_PREFIX_ADAPTER << "No hardcoded DEX information found for chain '" << bc_info.name << "' (ID: " << bc_info.network_id << ")." << std::endl;
         return true; // Completed successfully, just nothing to add
     }
-
+    
     const std::vector<known_dex_entry>& dexes_for_this_chain = known_dexes_it->second;
     std::cout << LOG_PREFIX_ADAPTER << "Found " << dexes_for_this_chain.size() << " known DEX entries for '" << bc_info.name << "'. Checking config..." << std::endl;
-
+    
     // 3. Iterate through known DEXes and add them to config if not already present
     int added_count = 0;
     int skipped_count = 0;
@@ -351,7 +452,7 @@ bool discover_dexes_for_blockchain(
         dex_to_add.name = known_dex.name;
         dex_to_add.factory_address = known_dex.factory_address; // Assuming factory is mandatory
         dex_to_add.router_address = known_dex.router_address;   // Optional router
-
+        
         // Attempt to add using config_manager function (handles duplicates)
         if (neozork::config_manager::add_dex(bc_info, dex_to_add)) {
             std::cout << LOG_PREFIX_ADAPTER << " -> Added '" << dex_to_add.name << "' (ID: " << dex_to_add.id << ") to config." << std::endl;
@@ -362,9 +463,9 @@ bool discover_dexes_for_blockchain(
             skipped_count++;
         }
     }
-
+    
     std::cout << LOG_PREFIX_ADAPTER << "Finished DEX discovery for '" << bc_info.name << "'. Added: " << added_count << ", Already existed/Skipped: " << skipped_count << "." << std::endl;
-
+    
     // Return true if any were added (indicates config was potentially modified)
     return true; // Indicate successful completion
 }
@@ -380,208 +481,156 @@ bool discover_dexes_for_blockchain(
  */
 // --- Implementation for discover_pools_for_dex ---
 bool discover_pools_for_dex(
-    neozork::config_manager::struct_config& config,
-    const std::string& blockchain_id_str,
-    const std::string& dex_id)
+                            neozork::config_manager::struct_config& config,
+                            const std::string& blockchain_id_str,
+                            const std::string& dex_id)
 {
-    bool changes_made = false; // Track if we added any pools
-
+    bool changes_made = false;
     std::cout << LOG_PREFIX_ADAPTER << "Starting pool discovery for blockchain ID '" << blockchain_id_str
-              << "', DEX '" << dex_id << "'..." << std::endl;
-
-
+    << "', DEX '" << dex_id << "'..." << std::endl;
+    
     // --- 1. Find Blockchain ---
     auto bc_info_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_id_str);
-    if (!bc_info_ref_opt) {
-        std::cerr << LOG_PREFIX_ADAPTER << "ERROR: Blockchain with ID '" << blockchain_id_str << "' not found in config." << std::endl;
-        return false; // Cannot proceed
-    }
-    neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get();
+    if (!bc_info_ref_opt) { /* error handling */ return false; }
+    neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get(); // Now use bc_info directly
     std::cout << LOG_PREFIX_ADAPTER << "Found blockchain: " << bc_info.name << std::endl;
-
-
+    
     // --- 2. Find DEX and Factory Address ---
     auto dex_info_ref_opt = neozork::config_manager::find_dex(bc_info, dex_id);
-    if (!dex_info_ref_opt) {
-         std::cerr << LOG_PREFIX_ADAPTER << "ERROR: DEX with ID '" << dex_id << "' not found in config for blockchain '" << bc_info.name << "'." << std::endl;
-         return false; // Cannot proceed
-    }
+    if (!dex_info_ref_opt) { /* error handling */ return false; }
     const neozork::config_manager::struct_dex_info& dex_info = dex_info_ref_opt.value().get();
-    if (!dex_info.factory_address.has_value() || dex_info.factory_address.value().empty()) {
-         std::cerr << LOG_PREFIX_ADAPTER << "ERROR: Factory address is missing for DEX '" << dex_id << "' in config." << std::endl;
-         return false; // Cannot proceed without factory
-    }
+    if (!dex_info.factory_address || dex_info.factory_address.value().empty()) { /* error handling */ return false; }
     const std::string factory_address = dex_info.factory_address.value();
     std::cout << LOG_PREFIX_ADAPTER << "Found DEX: " << dex_info.name << " (Factory: " << factory_address << ")" << std::endl;
-
-
-    // --- 3. Find Active HTTPS Endpoint ---
-    // Assuming send_eth_call uses HTTPS. Prioritize faster endpoints if available? For now, first active HTTPS.
-    std::string endpoint_url;
-    auto active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "https"); // Prefer HTTPS
-    if (!active_endpoints.empty()) {
-         // Get the URL from the first endpoint reference wrapper
-         const auto& first_ep = active_endpoints[0].get();
-         // Find the HTTPS url within this endpoint's map
-         auto url_it = first_ep.connection_urls.find("https");
-         if (url_it != first_ep.connection_urls.end()) {
-              endpoint_url = url_it->second;
-         }
-    }
-    if (endpoint_url.empty()) {
-        std::cerr << LOG_PREFIX_ADAPTER << "ERROR: No active HTTPS endpoint found for blockchain '" << bc_info.name << "' to query contracts." << std::endl;
-        return false; // Cannot proceed
-    }
-     std::cout << LOG_PREFIX_ADAPTER << "Using endpoint: " << endpoint_url << std::endl;
-
-
-    // --- 4. Define ABI Signatures (Uniswap V2 standard) ---
-    const std::string ALL_PAIRS_LENGTH_SIG = "0x18160ddd"; // allPairsLength()
-    const std::string ALL_PAIRS_SIG = "0x1e3dd18b";        // allPairs(uint256)
-    const std::string TOKEN0_SIG = "0x0dfe1681";           // token0()
-    const std::string TOKEN1_SIG = "0xd21220a7";           // token1()
-
-
-    // --- 5. Get Pool Count from Factory ---
+    
+    // --- 3. HTTPS Endpoint check needed by helper ---
+    // No need to explicitly find one here, helper function will do it.
+    // We just need to ensure bc_info is passed to the helper.
+    
+    
+    // --- 4. Define ABI Signatures ---
+    const std::string ALL_PAIRS_LENGTH_SIG = "0x18160ddd";
+    const std::string ALL_PAIRS_SIG = "0x1e3dd18b";
+    const std::string TOKEN0_SIG = "0x0dfe1681";
+    const std::string TOKEN1_SIG = "0xd21220a7";
+    
+    
+    // --- 5. Get Pool Count using Helper ---
     long long pool_count = 0;
     try {
         std::cout << LOG_PREFIX_ADAPTER << "Querying pool count from factory..." << std::endl;
         std::string length_data = neozork::connection_manager::encode_eth_call_data(ALL_PAIRS_LENGTH_SIG);
         if (length_data.empty()) throw std::runtime_error("Failed to encode allPairsLength data.");
-
-        auto length_result = neozork::connection_manager::send_eth_call(endpoint_url, factory_address, length_data);
-
-        // Check result before decoding
-        if (length_result.error_message || !length_result.body || length_result.body.value().empty() || length_result.body.value() == "0x") {
-             throw std::runtime_error("Failed to get pool count: " + length_result.error_message.value_or("Empty or invalid response body"));
+        
+        // Use the failover helper
+        std::optional<std::string> length_result_body = try_eth_call_with_failover(bc_info, factory_address, length_data);
+        
+        if (!length_result_body) {
+            throw std::runtime_error("Failed to get pool count from any endpoint.");
         }
-
-        // Decode count
-        pool_count = neozork::connection_manager::decode_uint256_from_result(length_result.body.value());
-        if (pool_count < 0) { // decode_uint256 might throw, but double check
-            throw std::runtime_error("Received invalid negative pool count.");
-        }
+        
+        pool_count = neozork::connection_manager::decode_uint256_from_result(*length_result_body);
+        if (pool_count < 0) throw std::runtime_error("Received invalid negative pool count.");
         std::cout << LOG_PREFIX_ADAPTER << "Factory reports " << pool_count << " pools." << std::endl;
-
+        
     } catch (const std::exception& e) {
         std::cerr << LOG_PREFIX_ADAPTER << "ERROR querying pool count: " << e.what() << std::endl;
-        return false; // Cannot proceed
+        return false;
     }
-
-    if (pool_count == 0) {
-         std::cout << LOG_PREFIX_ADAPTER << "No pools found according to factory. Finished." << std::endl;
-         return false; // No changes made
-    }
-
-
+    if (pool_count == 0) { /* handle no pools */ return false; }
+    
+    
     // --- 6. Initialize Progress Bar ---
     neozork::ui::start_progress("Discovering Pools", pool_count);
     int added_pool_count = 0;
-
-
+    
+    
     // --- 7. Loop Through Pools ---
     for (long long i = 0; i < pool_count; ++i) {
         std::string pool_address;
         std::string token0_address;
         std::string token1_address;
-
+        
         try {
-            // --- 7a. Get Pool Address ---
+            // --- 7a. Get Pool Address using Helper ---
             std::string pair_index_data = neozork::connection_manager::encode_eth_call_data(ALL_PAIRS_SIG, static_cast<unsigned long long>(i));
-            if (pair_index_data.empty()) throw std::runtime_error("Failed to encode allPairs data for index " + std::to_string(i));
-
-            auto pair_result = neozork::connection_manager::send_eth_call(endpoint_url, factory_address, pair_index_data);
-            if (pair_result.error_message || !pair_result.body) throw std::runtime_error("RPC error getting pair address for index " + std::to_string(i) + ": " + pair_result.error_message.value_or("No body"));
-
-            pool_address = neozork::connection_manager::decode_address_from_result(pair_result.body.value());
+            if (pair_index_data.empty()) throw std::runtime_error("Failed to encode allPairs data");
+            
+            std::optional<std::string> pair_result_body = try_eth_call_with_failover(bc_info, factory_address, pair_index_data);
+            if (!pair_result_body) throw std::runtime_error("Failed to get pair address from any endpoint");
+            
+            pool_address = neozork::connection_manager::decode_address_from_result(*pair_result_body);
             if (pool_address.empty() || pool_address == "0x0000000000000000000000000000000000000000") {
-                 // std::cerr << LOG_PREFIX_ADAPTER << "WARN: Received invalid/zero pool address for index " << i << ". Skipping." << std::endl;
-                 neozork::ui::update_progress(i + 1); // Still update progress
-                 continue; // Skip this index
+                // std::cerr << LOG_PREFIX_ADAPTER << "WARN: Invalid pool address at index " << i << ". Skipping." << std::endl;
+                neozork::ui::update_progress(i + 1); continue;
             }
-
-            // --- 7b. Check if Pool Already Exists Locally ---
-            // Pass bc_info by ref to find_pool
-             auto existing_pool_opt = neozork::config_manager::find_pool(bc_info, pool_address);
-             if (existing_pool_opt) {
-                 // std::cout << LOG_PREFIX_ADAPTER << "Pool " << pool_address << " already exists. Skipping." << std::endl; // Verbose
-                 neozork::ui::update_progress(i + 1);
-                 continue; // Skip if already in config
-             }
-
-             // --- Add small delay to avoid hitting RPC rate limits aggressively ---
-             // Adjust delay as needed (e.g., 50ms = 20 requests/sec approximately)
-             // std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-
-            // --- 7c. Get Token0 Address ---
+            
+            // --- 7b. Check if Pool Exists Locally ---
+            if (neozork::config_manager::find_pool(bc_info, pool_address)) {
+                neozork::ui::update_progress(i + 1); continue;
+            }
+            
+            // --- Optional Delay ---
+            // std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            
+            // --- 7c. Get Token0 Address using Helper ---
             std::string t0_data = neozork::connection_manager::encode_eth_call_data(TOKEN0_SIG);
             if (t0_data.empty()) throw std::runtime_error("Failed to encode token0 data");
-
-            auto t0_result = neozork::connection_manager::send_eth_call(endpoint_url, pool_address, t0_data);
-            if (t0_result.error_message || !t0_result.body) throw std::runtime_error("RPC error getting token0 for pool " + pool_address + ": " + t0_result.error_message.value_or("No body"));
-
-            token0_address = neozork::connection_manager::decode_address_from_result(t0_result.body.value());
+            
+            std::optional<std::string> t0_result_body = try_eth_call_with_failover(bc_info, pool_address, t0_data);
+            if (!t0_result_body) throw std::runtime_error("Failed to get token0 from any endpoint for pool " + pool_address);
+            
+            token0_address = neozork::connection_manager::decode_address_from_result(*t0_result_body);
             if (token0_address.empty() || token0_address == "0x0000000000000000000000000000000000000000") {
-                 std::cerr << LOG_PREFIX_ADAPTER << "WARN: Received invalid/zero token0 address for pool " << pool_address << ". Skipping." << std::endl;
-                 neozork::ui::update_progress(i + 1);
-                 continue;
+                std::cerr << LOG_PREFIX_ADAPTER << "WARN: Invalid token0 address for pool " << pool_address << ". Skipping." << std::endl;
+                neozork::ui::update_progress(i + 1); continue;
             }
-
-            // --- 7d. Get Token1 Address ---
+            
+            // --- 7d. Get Token1 Address using Helper ---
             std::string t1_data = neozork::connection_manager::encode_eth_call_data(TOKEN1_SIG);
-             if (t1_data.empty()) throw std::runtime_error("Failed to encode token1 data");
-
-            auto t1_result = neozork::connection_manager::send_eth_call(endpoint_url, pool_address, t1_data);
-            if (t1_result.error_message || !t1_result.body) throw std::runtime_error("RPC error getting token1 for pool " + pool_address + ": " + t1_result.error_message.value_or("No body"));
-
-            token1_address = neozork::connection_manager::decode_address_from_result(t1_result.body.value());
-             if (token1_address.empty() || token1_address == "0x0000000000000000000000000000000000000000") {
-                 std::cerr << LOG_PREFIX_ADAPTER << "WARN: Received invalid/zero token1 address for pool " << pool_address << ". Skipping." << std::endl;
-                 neozork::ui::update_progress(i + 1);
-                 continue;
-             }
-
+            if (t1_data.empty()) throw std::runtime_error("Failed to encode token1 data");
+            
+            std::optional<std::string> t1_result_body = try_eth_call_with_failover(bc_info, pool_address, t1_data);
+            if (!t1_result_body) throw std::runtime_error("Failed to get token1 from any endpoint for pool " + pool_address);
+            
+            token1_address = neozork::connection_manager::decode_address_from_result(*t1_result_body);
+            if (token1_address.empty() || token1_address == "0x0000000000000000000000000000000000000000") {
+                std::cerr << LOG_PREFIX_ADAPTER << "WARN: Invalid token1 address for pool " << pool_address << ". Skipping." << std::endl;
+                neozork::ui::update_progress(i + 1); continue;
+            }
+            
             // --- 7e. Construct Pool Info & Add to Config ---
             neozork::config_manager::struct_pool_info new_pool;
+            // ... (fill new_pool details) ...
             new_pool.dex_id = dex_id;
-            new_pool.pool_id = pool_address; // Use pool address as unique ID
+            new_pool.pool_id = pool_address;
             new_pool.token0.address = token0_address;
             new_pool.token1.address = token1_address;
-            // Symbols are not fetched here, leave empty
-            new_pool.token0.symbol = "";
-            new_pool.token1.symbol = "";
-
-            // Add pool using config manager (handles check within bc_info.pools)
+            new_pool.token0.symbol = ""; // Leave empty
+            new_pool.token1.symbol = ""; // Leave empty
+            
             if (neozork::config_manager::add_pool(bc_info, new_pool)) {
                 changes_made = true;
                 added_pool_count++;
-                 // Optional verbose log:
-                 // std::cout << "\n" << LOG_PREFIX_ADAPTER << "Added pool: " << pool_address << " (Tokens: " << token0_address << "/" << token1_address << ")" << std::endl;
-            } else {
-                 // This shouldn't happen if find_pool check above worked, but log just in case
-                 std::cerr << LOG_PREFIX_ADAPTER << "WARN: add_pool failed for pool " << pool_address << " which was not found initially." << std::endl;
             }
-
+            
         } catch (const std::exception& e) {
-            // Log error for this specific pool index and continue
             std::cerr << "\n" << LOG_PREFIX_ADAPTER << "ERROR processing pool index " << i << ": " << e.what() << ". Skipping." << std::endl;
-            // Optionally add a retry mechanism here or more robust error handling
         }
-
+        
         // --- 7f. Update Progress Bar ---
         neozork::ui::update_progress(i + 1);
-
+        
     } // --- End Loop Through Pools ---
-
-
+    
+    
     // --- 8. Finish Progress Bar ---
     neozork::ui::finish_progress();
     std::cout << LOG_PREFIX_ADAPTER << "Finished pool discovery loop. Added " << added_pool_count << " new pools to config." << std::endl;
-
-
+    
+    
     // --- 9. Return Status ---
-    return changes_made; // Return true if any pool was successfully added
+    return changes_made;
 }
 
 } // namespace neozork::blockchain_adapters
