@@ -47,6 +47,21 @@ bool discover_dexes_for_blockchain(
     const std::string& blockchain_name_or_id
 );
 
+/**
+ * @brief Discovers liquidity pools for a specific DEX on a given blockchain.
+ * Interacts with the DEX Factory contract via RPC.
+ * @param config The main configuration object (mutable).
+ * @param blockchain_id_str The network ID of the blockchain as a string.
+ * @param dex_id The ID of the DEX (from config) for which to discover pools.
+ * @return True if the configuration was potentially modified (new pools added), false otherwise or on critical error.
+ * @throws std::runtime_error on configuration errors (blockchain/DEX not found) or RPC errors.
+ */
+bool discover_pools_for_dex(
+    neozork::config_manager::struct_config& config,
+    const std::string& blockchain_id_str, // Pass ID string for unambiguous lookup
+    const std::string& dex_id
+);
+
 // --- Planned functions (Stubs for now) ---
 
 // std::vector<neozork::config_manager::struct_dex_info> discover_dexes(

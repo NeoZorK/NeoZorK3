@@ -92,6 +92,7 @@ int main(int argc, char* argv[]) {
             case command_type::SCAN_SINGLE_ENDPOINT:
             case command_type::MEASURE_BLOCK_SPEED:
             case command_type::FIND_DEXES:
+            case command_type::FIND_POOLS:
             {
                 if (!config_opt) { throw std::runtime_error("Internal error: Config not loaded for mutable command."); }
                 struct_config& mutable_config = config_opt.value(); // Get mutable ref
@@ -102,6 +103,8 @@ int main(int argc, char* argv[]) {
                 else if (params.type == command_type::SCAN_SINGLE_ENDPOINT) handle_scan_single_endpoint(mutable_config, params);
                 else if (params.type == command_type::MEASURE_BLOCK_SPEED)  handle_measure_block_speed(mutable_config, params);
                 else if (params.type == command_type::FIND_DEXES)        handle_find_dexes(mutable_config, params);
+                else if (params.type == command_type::FIND_POOLS)        handle_find_pools(mutable_config, params);
+                
                 // Add future mutable command handlers here
                 
                 // Saving is now handled INSIDE the handlers for consistency

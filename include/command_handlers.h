@@ -101,7 +101,15 @@ void handle_find_dexes( // Takes config by non-const ref
                        neozork::config_manager::struct_config& config,
                        const neozork::cli_parser::command_parameters& params
                        );
-// 
+//
+
+/**
+ * @brief Handles the '--find-pools' command. Processes one or multiple blockchains.
+ */
+void handle_find_pools(
+    neozork::config_manager::struct_config& config,
+    const neozork::cli_parser::command_parameters& params
+);
 
 } // namespace neozork::command_handlers
 
