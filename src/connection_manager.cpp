@@ -288,29 +288,36 @@ std::string decode_address_from_result(const std::string& result_hex) {
 /**
  * @brief Decodes a uint256 value from a standard 32-byte eth_call hex result.
  */
+// --- Implementation for decode_uint256_from_result (Corrected "0x" handling) ---
 long long decode_uint256_from_result(const std::string& result_hex) {
-    // Expected format: "0x" followed by hex characters
-    if (result_hex.length() <= 2 || result_hex.rfind("0x", 0) != 0) {
-        throw std::invalid_argument("Connection Manager ABI: Invalid hex string format for uint256 decoding: " + result_hex);
+    // Check for empty string or just "0x" -> treat as 0
+    if (result_hex.length() <= 2 || result_hex == "0x") {
+        if (result_hex == "0x" || result_hex == "") return 0; // Explicitly handle "0x" and "" as 0
+        // Any other short string or string not starting with 0x is invalid
+        if (result_hex.length() < 2 || result_hex.rfind("0x", 0) != 0) {
+            throw std::invalid_argument("Connection Manager ABI: Invalid hex string format for uint256 decoding: " + result_hex);
+        }
+        // If length is 2 but it IS "0x", we already returned 0. This covers other len=2 cases.
     }
+    
     
     // Get the hex part after "0x"
     std::string hex_part = result_hex.substr(2);
     
-    // Handle empty hex part (e.g., if input was just "0x")
+    
+    // Handle empty hex part just in case (e.g., if input was exactly "0x")
+    // This check might be redundant now due to the check above, but safe to keep.
     if (hex_part.empty()) {
         return 0; // Treat empty hex as zero
     }
     
+    
     try {
-        // Use std::stoull for unsigned long long, as uint256 can exceed long long max
+        // Use std::stoull for unsigned long long
         unsigned long long ull_value = std::stoull(hex_part, nullptr, 16);
         
         // Check if it fits in long long before returning
         if (ull_value > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
-            // Consider how critical exceeding long long is. For pool count, it's unlikely.
-            // For token amounts, it's possible. Maybe return unsigned long long instead?
-            // For now, throw out_of_range if it exceeds signed long long.
             throw std::out_of_range("Connection Manager ABI: Decoded uint256 value exceeds long long limits: " + result_hex);
         }
         
@@ -318,14 +325,11 @@ long long decode_uint256_from_result(const std::string& result_hex) {
         return static_cast<long long>(ull_value);
         
     } catch (const std::invalid_argument& ia) {
-        // Error during hex conversion (e.g., non-hex characters)
         throw std::invalid_argument("Connection Manager ABI: Invalid hex characters in uint256 string: " + result_hex + " (" + ia.what() + ")");
     } catch (const std::out_of_range& oor) {
-        // Error if value is too large for unsigned long long OR our manual check fails
         throw std::out_of_range("Connection Manager ABI: Uint256 value out of range for (unsigned) long long: " + result_hex + " (" + oor.what() + ")");
     }
-}
-
+} // end decode_uint256_from_result
 // +++ END ADDED ABI HELPERS IMPLEMENTATIONS +++
 
 /**

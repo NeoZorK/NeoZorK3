@@ -194,6 +194,9 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
         // Option: --dbr (Delay Between Requests)
         else if (arg == "--dbr") {
+            
+            std::cout << "DEBUG PARSER: Processing --dbr argument..." << std::endl << std::flush;
+                       
              if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
                   std::string delay_str = args[++i];
                   try {

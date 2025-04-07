@@ -717,6 +717,9 @@ void handle_find_pools(
     const std::optional<std::string>& dex_id_opt = params.dex_id;
     int delay_ms = params.delay_between_requests_ms.value_or(0);
     
+    std::cout << "[Handler DEBUG] Retrieved delay_ms = " << delay_ms << std::endl;
+     
+    
     // Print header
     neozork::ui::print_label("\n--- Discovering Pools");
     if (dex_id_opt) {
