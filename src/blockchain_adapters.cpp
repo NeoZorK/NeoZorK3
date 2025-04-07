@@ -600,9 +600,8 @@ bool discover_pools_for_dex(
     
     
     // --- 7. Loop Through Pools ---
-    // The loop now uses the limited pool_count
+    // --- 7. Loop Through Pools ---
     for (long long i = 0; i < pool_count; ++i) {
-        // ... (остальная часть цикла: try/catch для allPairs(i), token0, token1, add_pool, update_progress) ...
         std::string pool_address;
         std::string token0_address;
         std::string token1_address;
@@ -613,6 +612,9 @@ bool discover_pools_for_dex(
             if (pair_index_data.empty()) throw std::runtime_error("Failed to encode allPairs data");
             
             std::optional<std::string> pair_result_body = try_eth_call_with_failover(bc_info, factory_address, pair_index_data);
+            // +++ ADD DELAY AFTER CALL +++
+            if (delay_ms > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms)); }
+            // +++ END DELAY +++
             if (!pair_result_body) throw std::runtime_error("Failed to get pair address from any endpoint");
             
             pool_address = neozork::connection_manager::decode_address_from_result(*pair_result_body);
@@ -630,6 +632,9 @@ bool discover_pools_for_dex(
             if (t0_data.empty()) throw std::runtime_error("Failed to encode token0 data");
             
             std::optional<std::string> t0_result_body = try_eth_call_with_failover(bc_info, pool_address, t0_data);
+            // +++ ADD DELAY AFTER CALL +++
+            if (delay_ms > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms)); }
+            // +++ END DELAY +++
             if (!t0_result_body) throw std::runtime_error("Failed to get token0 from any endpoint for pool " + pool_address);
             
             token0_address = neozork::connection_manager::decode_address_from_result(*t0_result_body);
@@ -643,6 +648,9 @@ bool discover_pools_for_dex(
             if (t1_data.empty()) throw std::runtime_error("Failed to encode token1 data");
             
             std::optional<std::string> t1_result_body = try_eth_call_with_failover(bc_info, pool_address, t1_data);
+            // +++ ADD DELAY AFTER CALL +++
+            if (delay_ms > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms)); }
+            // +++ END DELAY +++
             if (!t1_result_body) throw std::runtime_error("Failed to get token1 from any endpoint for pool " + pool_address);
             
             token1_address = neozork::connection_manager::decode_address_from_result(*t1_result_body);
@@ -653,12 +661,13 @@ bool discover_pools_for_dex(
             
             // --- 7e. Construct Pool Info & Add to Config ---
             neozork::config_manager::struct_pool_info new_pool;
+            // ... (fill new_pool details) ...
             new_pool.dex_id = dex_id;
             new_pool.pool_id = pool_address;
             new_pool.token0.address = token0_address;
             new_pool.token1.address = token1_address;
-            new_pool.token0.symbol = ""; // Leave empty
-            new_pool.token1.symbol = ""; // Leave empty
+            new_pool.token0.symbol = "";
+            new_pool.token1.symbol = "";
             
             if (neozork::config_manager::add_pool(bc_info, new_pool)) {
                 changes_made = true;
@@ -667,21 +676,18 @@ bool discover_pools_for_dex(
             
         } catch (const std::exception& e) {
             std::cerr << "\n" << LOG_PREFIX_ADAPTER << "ERROR processing pool index " << i << ": " << e.what() << ". Skipping." << std::endl;
-        }
-        
-        std::cout << "\n" << LOG_PREFIX_ADAPTER << "Debug: Checking delay for index " << i << ". delay_ms = " << delay_ms << std::endl;
-        
-        
-        // Apply delay IF specified by the user (> 0)
-        if (delay_ms > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+            // --- ADD DELAY EVEN ON ERROR? Optional, maybe not needed here ---
+            // if (delay_ms > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms)); }
         }
         
         // --- 7f. Update Progress Bar ---
+        // REMOVE OLD SLEEP FROM HERE
+        // std::cout << "\n" << LOG_PREFIX_ADAPTER << "Debug: Checking delay... "; // Remove this debug log too
+        // if (delay_ms > 0) { std::this_thread::sleep_for(...); } // Remove old sleep
+        
         neozork::ui::update_progress(i + 1);
         
     } // --- End Loop Through Pools ---
-    
     
     // --- 8. Finish Progress Bar ---
     neozork::ui::finish_progress();
