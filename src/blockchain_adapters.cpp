@@ -601,7 +601,6 @@ bool discover_pools_for_dex(
     // The loop now uses the limited pool_count
     for (long long i = 0; i < pool_count; ++i) {
         // ... (остальная часть цикла: try/catch для allPairs(i), token0, token1, add_pool, update_progress) ...
-        // --- Эта часть остается БЕЗ ИЗМЕНЕНИЙ ---
         std::string pool_address;
         std::string token0_address;
         std::string token1_address;
@@ -666,6 +665,12 @@ bool discover_pools_for_dex(
             
         } catch (const std::exception& e) {
             std::cerr << "\n" << LOG_PREFIX_ADAPTER << "ERROR processing pool index " << i << ": " << e.what() << ". Skipping." << std::endl;
+        }
+        
+        // Add a small delay to avoid hitting rate limits too hard
+        // (Adjust duration as needed, e.g., 50ms, 100ms, 200ms)
+        if (pool_count > 10) { // Only add delay if there are many pools to process
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         
         // --- 7f. Update Progress Bar ---
