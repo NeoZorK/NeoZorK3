@@ -729,6 +729,11 @@ void handle_find_pools(
     neozork::ui::print_value(blockchain_name_or_id);
     std::cout << " ---\n";
     
+    // Get delay from params, default to 0 (no delay) if not provided
+    int delay_ms = params.delay_between_requests_ms.value_or(0);
+    if (delay_ms > 0) {
+         std::cout << "Using delay between requests: " << delay_ms << " ms." << std::endl;
+    }
     
     // 2. Determine if input is ID or Name Search for blockchain
     bool is_id_search = false;
@@ -774,7 +779,7 @@ void handle_find_pools(
         try {
             // Pass config reference, current blockchain ID as string, and dex ID string
             std::string current_id_str = std::to_string(current_bc_info.network_id);
-            bool result = neozork::blockchain_adapters::discover_pools_for_dex(config, current_id_str, dex_id_to_find); // <<< Placeholder Call
+            bool result = neozork::blockchain_adapters::discover_pools_for_dex(config, current_id_str, dex_id_to_find, delay_ms);
             
             if (result) {
                 any_changes_made = true; // Mark potential change if function indicates success/modification

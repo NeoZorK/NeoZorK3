@@ -36,6 +36,7 @@ struct command_parameters {
     std::optional<std::string> connection_type;       // Optional: For SCAN* commands to filter connection type
     std::optional<std::string> search_term;           // Filter by search term
     std::optional<std::string> dex_id;                // For FIND_DEXES
+    std::optional<int> delay_between_requests_ms;     // For finding pools
     // TODO: Add other parameters as needed (password,  etc.)
 };
 

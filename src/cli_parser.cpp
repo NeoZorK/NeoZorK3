@@ -60,6 +60,8 @@ void print_help() {
     << "                               Optionally specify connection type "<<yellow<<"(https, wss, etc.)"<<reset<<"\n"
     << "                               for scanning commands. If omitted, all types for the\n"
     << "                               endpoint(s) listed in config are scanned.\n"
+    << blue << "      --dbr <ms>"<< reset << "              Set delay in milliseconds between pool discovery requests\n"
+    << "                               (Valid: 1-3000). Used only with " << yellow << "--find-pools" << reset << ".\n"
     // --- Planned Commands ---
     << bright_black << " Planned Commands: " << reset << "\n"
     << "      --get-token-price        Get token price info.\n"
@@ -190,6 +192,27 @@ command_parameters parse_arguments(int argc, char* argv[]) {
                 throw std::runtime_error("Missing value for argument: " + arg);
             }
         }
+        // Option: --dbr (Delay Between Requests)
+        else if (arg == "--dbr") {
+             if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
+                  std::string delay_str = args[++i];
+                  try {
+                      int delay_val = std::stoi(delay_str);
+                      // Validate range
+                      if (delay_val >= 1 && delay_val <= 3000) {
+                          params.delay_between_requests_ms = delay_val;
+                      } else {
+                          throw std::runtime_error("Value for " + arg + " must be between 1 and 3000 ms.");
+                      }
+                  } catch (const std::invalid_argument& e) {
+                      throw std::runtime_error("Invalid integer value for " + arg + ": '" + delay_str + "'");
+                  } catch (const std::out_of_range& e) {
+                       throw std::runtime_error("Value out of range for integer for " + arg + ": '" + delay_str + "'");
+                  }
+             } else {
+                  throw std::runtime_error("Missing value for argument: " + arg);
+             }
+        }
         
         
         else if (params.type == command_type::SHOW_ENDPOINT_INFO) {
@@ -314,7 +337,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
     }
     
-    // Validation for FIND_POOLS
+    // Validation for FIND_POOLS (add check for --dbr usage)
     else if (params.type == command_type::FIND_POOLS) {
         if (!params.blockchain_name.has_value()) {
             throw std::runtime_error("--blockchain <name|id> is required for --find-pools");
@@ -322,8 +345,17 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         if (!params.dex_id.has_value()) {
             throw std::runtime_error("--dex <dex_id> is required for --find-pools");
         }
-        // Add checks for irrelevant flags if needed
-        // if (!params.sources.empty()) { std::cerr << "Warning: --source argument ignored...\n"; }
+        // Check for irrelevant flags (Example)
+         if (!params.sources.empty()) { std::cerr << "Warning: --source argument ignored for --find-pools command.\n"; }
+    }
+    // +++ START ADDED CODE +++
+    // General check: Warn if --dbr is used with wrong command
+    else if (params.delay_between_requests_ms.has_value()) {
+         // If dbr is set, but the command is not FIND_POOLS (or future commands needing it)
+         if (params.type != command_type::FIND_POOLS) {
+               std::cerr << "Warning: --dbr option is only used with --find-pools and will be ignored for command type "
+                         << static_cast<int>(params.type) << ".\n";
+         }
     }
     
     // Default action if no command specified

@@ -520,7 +520,8 @@ bool discover_dexes_for_blockchain(
 bool discover_pools_for_dex(
                             neozork::config_manager::struct_config& config,
                             const std::string& blockchain_id_str,
-                            const std::string& dex_id)
+                            const std::string& dex_id,
+                            int delay_ms)
 {
     bool changes_made = false;
     std::cout << LOG_PREFIX_ADAPTER << "Starting pool discovery for blockchain ID '" << blockchain_id_str
@@ -667,11 +668,10 @@ bool discover_pools_for_dex(
             std::cerr << "\n" << LOG_PREFIX_ADAPTER << "ERROR processing pool index " << i << ": " << e.what() << ". Skipping." << std::endl;
         }
         
-        // Add a small delay to avoid hitting rate limits too hard
-        // (Adjust duration as needed, e.g., 50ms, 100ms, 200ms)
-        if (pool_count > 10) { // Only add delay if there are many pools to process
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+        // Apply delay IF specified by the user (> 0)
+            if (delay_ms > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+            }
         
         // --- 7f. Update Progress Bar ---
         neozork::ui::update_progress(i + 1);

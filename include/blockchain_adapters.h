@@ -58,8 +58,9 @@ bool discover_dexes_for_blockchain(
  */
 bool discover_pools_for_dex(
     neozork::config_manager::struct_config& config,
-    const std::string& blockchain_id_str, // Pass ID string for unambiguous lookup
-    const std::string& dex_id
+    const std::string& blockchain_id_str,
+    const std::string& dex_id,
+    int delay_ms // <<< ADDED parameter (0 = no delay)
 );
 
 // --- Planned functions (Stubs for now) ---
