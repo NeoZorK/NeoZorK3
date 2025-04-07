@@ -369,4 +369,44 @@ bool discover_dexes_for_blockchain(
     return true; // Indicate successful completion
 }
 
+// +++ START ADDED STUB IMPLEMENTATION +++
+/**
+ * @brief Discovers liquidity pools for a specific DEX on a given blockchain.
+ * Interacts with the DEX Factory contract via RPC.
+ * @param config The main configuration object (mutable).
+ * @param blockchain_id_str The network ID of the blockchain as a string.
+ * @param dex_id The ID of the DEX (from config) for which to discover pools.
+ * @return True if the configuration was potentially modified (new pools added), false otherwise or on critical error.
+ * @throws std::runtime_error on configuration errors (blockchain/DEX not found) or RPC errors.
+ */
+bool discover_pools_for_dex(
+    neozork::config_manager::struct_config& config,
+    const std::string& blockchain_id_str, // Pass ID string for unambiguous lookup
+    const std::string& dex_id)
+{
+    // Log entry point
+    neozork::ui::print_label(LOG_PREFIX_ADAPTER); // Use existing prefix if defined, or std::cout
+    std::cout << "Pool discovery for blockchain ID '" << blockchain_id_str
+              << "', DEX '" << dex_id << "' - NOT IMPLEMENTED YET." << std::endl;
+
+
+    // TODO: Implement the actual logic here:
+    // 1. Find blockchain by ID string in config.
+    // 2. Find DEX by dex_id within the blockchain struct. Get factory_address.
+    // 3. Find an active HTTPS endpoint for the blockchain.
+    // 4. Call factory.allPairsLength() via eth_call (using ABI helpers).
+    // 5. Loop from i = 0 to length-1:
+    // 6.   Call factory.allPairs(i) via eth_call -> get pool_address.
+    // 7.   Call pool.token0() via eth_call -> get token0_address.
+    // 8.   Call pool.token1() via eth_call -> get token1_address.
+    // 9.   Create struct_pool_info.
+    // 10.  Add pool to config using config_manager::add_pool.
+    // 11.  Update progress bar.
+
+
+    // Return false for now, indicating no changes were made
+    return false;
+}
+// +++ END ADDED STUB IMPLEMENTATION +++
+
 } // namespace neozork::blockchain_adapters

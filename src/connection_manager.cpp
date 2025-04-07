@@ -9,6 +9,10 @@
 #include <optional>
 #include <chrono>    // For timing latency
 #include <regex>     // For parsing URL
+#include <sstream>   // For string manipulation and hex formatting
+#include <iomanip>   // For std::setfill, std::setw
+#include <stdexcept> // For std::invalid_argument, std::out_of_range
+#include <limits>    // For numeric limits potentially
 
 // Include httplib. Define the macro for HTTPS support BEFORE including.
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -221,6 +225,108 @@ connection_result send_json_rpc_request(
     // 4. Call https_post
     return https_post(host, path, request_body_str, rpc_headers);
 }
+
+// +++ START ADDED ABI HELPERS IMPLEMENTATIONS +++
+
+/**
+ * @brief Encodes data for an eth_call for a function with no arguments.
+ */
+std::string encode_eth_call_data(const std::string& function_sig_hash) {
+    // Basic validation: should be "0x" followed by 8 hex chars
+    if (function_sig_hash.length() != 10 || function_sig_hash.rfind("0x", 0) != 0) {
+        std::cerr << "Connection Manager ABI: Invalid function signature hash format: " << function_sig_hash << std::endl;
+        return ""; // Return empty on error
+    }
+    // For no arguments, data is just the hash
+    return function_sig_hash;
+}
+
+
+/**
+ * @brief Encodes data for an eth_call for a function with one uint256 argument.
+ */
+std::string encode_eth_call_data(const std::string& function_sig_hash, unsigned long long argument) {
+    // Basic validation for hash
+    if (function_sig_hash.length() != 10 || function_sig_hash.rfind("0x", 0) != 0) {
+        std::cerr << "Connection Manager ABI: Invalid function signature hash format: " << function_sig_hash << std::endl;
+        return "";
+    }
+    
+    // Remove "0x" prefix from hash
+    std::string hash_part = function_sig_hash.substr(2);
+    
+    // Encode the argument as a 32-byte (64 hex chars) padded hex string
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(64) << argument;
+    std::string arg_part = ss.str();
+    
+    // Concatenate "0x" + hash + encoded_arg
+    return "0x" + hash_part + arg_part;
+}
+
+
+/**
+ * @brief Decodes an address from a standard 32-byte eth_call hex result.
+ */
+std::string decode_address_from_result(const std::string& result_hex) {
+    // Expected format: "0x" followed by 64 hex characters (32 bytes)
+    if (result_hex.length() != 66 || result_hex.rfind("0x", 0) != 0) {
+        // It might also return "0x" for a zero address/failure, handle gently?
+        if (result_hex == "0x") return "0x0000000000000000000000000000000000000000"; // Treat "0x" as zero address
+        std::cerr << "Connection Manager ABI: Invalid result format for address decoding: " << result_hex << " (Length: " << result_hex.length() << ")" << std::endl;
+        return ""; // Return empty on error
+    }
+    
+    // Address is the last 40 characters (20 bytes)
+    std::string address_part = result_hex.substr(66 - 40);
+    
+    // Prepend "0x"
+    return "0x" + address_part;
+}
+
+
+/**
+ * @brief Decodes a uint256 value from a standard 32-byte eth_call hex result.
+ */
+long long decode_uint256_from_result(const std::string& result_hex) {
+    // Expected format: "0x" followed by hex characters
+    if (result_hex.length() <= 2 || result_hex.rfind("0x", 0) != 0) {
+        throw std::invalid_argument("Connection Manager ABI: Invalid hex string format for uint256 decoding: " + result_hex);
+    }
+    
+    // Get the hex part after "0x"
+    std::string hex_part = result_hex.substr(2);
+    
+    // Handle empty hex part (e.g., if input was just "0x")
+    if (hex_part.empty()) {
+        return 0; // Treat empty hex as zero
+    }
+    
+    try {
+        // Use std::stoull for unsigned long long, as uint256 can exceed long long max
+        unsigned long long ull_value = std::stoull(hex_part, nullptr, 16);
+        
+        // Check if it fits in long long before returning
+        if (ull_value > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+            // Consider how critical exceeding long long is. For pool count, it's unlikely.
+            // For token amounts, it's possible. Maybe return unsigned long long instead?
+            // For now, throw out_of_range if it exceeds signed long long.
+            throw std::out_of_range("Connection Manager ABI: Decoded uint256 value exceeds long long limits: " + result_hex);
+        }
+        
+        // Safely cast and return
+        return static_cast<long long>(ull_value);
+        
+    } catch (const std::invalid_argument& ia) {
+        // Error during hex conversion (e.g., non-hex characters)
+        throw std::invalid_argument("Connection Manager ABI: Invalid hex characters in uint256 string: " + result_hex + " (" + ia.what() + ")");
+    } catch (const std::out_of_range& oor) {
+        // Error if value is too large for unsigned long long OR our manual check fails
+        throw std::out_of_range("Connection Manager ABI: Uint256 value out of range for (unsigned) long long: " + result_hex + " (" + oor.what() + ")");
+    }
+}
+
+// +++ END ADDED ABI HELPERS IMPLEMENTATIONS +++
 
 
 // TODO: Implement ws_connect, ipc_connect etc. later
