@@ -42,7 +42,7 @@ void print_help() {
     << blue << "      --active" << reset << "                 Show active endpoints for a blockchain, sorted by latency.\n"
     << "                               Requires:" << yellow << "-b/--blockchain." << reset << "Optionally filter by\n"
     << "                               " << yellow << "-t/--connection-type" << reset << ".\n"
-    << blue << "      --find-dexes" << reset << "           Attempt to find known DEX contracts on a blockchain and\n"
+    << blue << "      --find-dexes" << reset << "             Attempt to find known DEX contracts on a blockchain and\n"
     << "                               add them to the config. Requires: " << yellow << "-b/--blockchain" << reset << ".\n"
     << bright_white << "\nCommon Options:" << reset << "\n"
     << blue << "  -b, --blockchain <name|id>"<<reset<<"   Specify the target blockchain name or network ID.\n"
