@@ -42,74 +42,79 @@ bool contains_case_insensitive(const std::string& haystack, const std::string& n
      */
 }
 
-// --- Handler for SHOW_ENDPOINT_INFO (Now includes DEX search) ---
+// --- Handler for SHOW_ENDPOINT_INFO (Combines Endpoint search + context AND direct DEX search) ---
 void handle_show_endpoint_info(
                                const neozork::config_manager::struct_config& config,
                                const neozork::cli_parser::command_parameters& params)
 {
-    // Get the search term (parser should ensure it exists for this command type)
+    // Get the search term
     if (!params.search_term) {
-        // This check is defensive; the parser should have caught this.
         throw std::runtime_error("Internal Error: Search term is missing for handle_show_endpoint_info.");
     }
     const std::string& search_term = params.search_term.value();
-    
-    // Use ui functions for colored output
+
+    // Update header message
     neozork::ui::print_label("Searching for Endpoints (URL) and DEXes (Name/ID) containing: '");
-    neozork::ui::print_value(search_term); // Assuming print_value handles strings appropriately
+    neozork::ui::print_value(search_term);
     neozork::ui::print_label("'\n");
     std::cout << "========================================" << std::endl;
-    
-    
+
+
     int found_endpoints_count = 0; // Counter for endpoints
-    int found_dex_count = 0;       // Counter for DEXes
-    
-    
+    int found_dex_count = 0;       // Counter for DEXes (restored)
+
+
     // Iterate through all blockchains in the config
     for (const auto& bc_info : config.blockchains) {
-        
-        // --- Search Endpoints (Existing Logic) ---
+
+        // --- Search Endpoints (and display with DEX context) ---
         for (const auto& endpoint : bc_info.endpoints) {
             bool match_found_in_endpoint = false;
-            // Check if the search term is a substring of any URL defined for this endpoint
+            // Check if the search term is a substring of any URL
             for (const auto& url_pair : endpoint.connection_urls) {
-                // Case-sensitive search for URLs is usually fine
                 if (url_pair.second.find(search_term) != std::string::npos) {
                     match_found_in_endpoint = true;
-                    break; // Found a match in this endpoint, no need to check its other URLs
+                    break;
                 }
             }
-            
-            // If a match was found in any URL of this endpoint, print its details
+
+            // If an endpoint URL match was found, print its details
+            // The function print_endpoint_details also prints associated DEXes
             if (match_found_in_endpoint) {
                 found_endpoints_count++;
-                // Call the UI function to print details for this endpoint
+                // Call function that prints endpoint details AND the DEX list for context
                 neozork::ui::print_endpoint_details(bc_info, endpoint);
             }
         } // end loop over endpoints
-        
-        
-        // +++ START ADDED CODE for DEX Search +++
-        // --- Search DEXes ---
+
+
+        // +++ START RESTORED DEX Search +++
+        // --- Search DEXes directly ---
         for (const auto& dex : bc_info.dexes) {
-            // Check if search term matches DEX ID (case-sensitive) or Name (case-insensitive)
-            bool id_match = (dex.id.find(search_term) != std::string::npos);
-            bool name_match = contains_case_insensitive(dex.name, search_term);
-            
-            if (id_match || name_match) {
-                found_dex_count++;
-                // Call the new UI function to print DEX details
-                neozork::ui::print_dex_details(bc_info, dex);
-            }
+             // Check if search term matches DEX ID (case-sensitive) or Name (case-insensitive)
+             bool id_match = (dex.id.find(search_term) != std::string::npos);
+             bool name_match = contains_case_insensitive(dex.name, search_term);
+
+             if (id_match || name_match) {
+                 // --- Check if this DEX was already shown as context for an endpoint above ---
+                 // (Optional optimization: could track printed blockchain/DEX combos to avoid
+                 // calling print_dex_details if print_endpoint_details already showed it.
+                 // For simplicity now, we allow potential duplicate display of DEX info
+                 // if search term matches both endpoint URL and DEX name/ID on same chain).
+
+                 found_dex_count++;
+                 // Call the function that prints *only* the matching DEX details
+                 neozork::ui::print_dex_details(bc_info, dex);
+             }
         } // end loop over dexes
-        // +++ END ADDED CODE for DEX Search +++
-        
-        
+        // +++ END RESTORED DEX Search +++
+
+
     } // end loop over blockchains
-    
-    
+
+
     std::cout << "========================================" << std::endl;
-    // Print summary counts
+    // Print summary counts (restored both)
     neozork::ui::print_label("Total endpoints found matching the criteria: ");
     neozork::ui::print_value(found_endpoints_count);
     std::cout << std::endl;
@@ -117,7 +122,6 @@ void handle_show_endpoint_info(
     neozork::ui::print_value(found_dex_count);
     std::cout << std::endl;
 }
-
 
 // --- Handler for SHOW_BLOCK_SPEEDS ---
 void handle_show_block_speeds(
