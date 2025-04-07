@@ -104,6 +104,21 @@ long long decode_uint256_from_result(const std::string& result_hex);
 
 // +++ END ADDED ABI HELPERS DECLARATIONS +++ф
 
+/**
+ * @brief Sends a JSON RPC "eth_call" request to an endpoint.
+ * @param endpoint_url The full HTTPS URL of the JSON RPC endpoint.
+ * @param contract_address The address of the contract to call ('to' field).
+ * @param encoded_data The ABI-encoded data for the function call ('data' field).
+ * @return connection_result Structure containing details about the HTTP operation outcome.
+ * @throws std::invalid_argument if the URL is invalid or other input errors occur.
+ * @throws std::runtime_error on JSON errors or other execution issues.
+ */
+connection_result send_eth_call(
+                                const std::string& endpoint_url,
+                                const std::string& contract_address,
+                                const std::string& encoded_data
+                                );
+
 // TODO: Add ws_connect, ipc_connect etc. later
 
 } // namespace neozork::connection_manager

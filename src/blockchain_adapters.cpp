@@ -384,6 +384,9 @@ bool discover_pools_for_dex(
     const std::string& blockchain_id_str, // Pass ID string for unambiguous lookup
     const std::string& dex_id)
 {
+    // Mark config as intentionally unused in this stub implementation
+        (void)config;
+    
     // Log entry point
     neozork::ui::print_label(LOG_PREFIX_ADAPTER); // Use existing prefix if defined, or std::cout
     std::cout << "Pool discovery for blockchain ID '" << blockchain_id_str
