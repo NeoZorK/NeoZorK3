@@ -573,7 +573,7 @@ int process_single_source(
         
         // Reuse chainlist parser assuming similar structure
         parser_to_use = ParserType::CHAINLIST;
-        std::cout << LOG_PREFIX << "Identified source as DefiLlama (using Chainlist-compatible parser)." << std::endl;
+        std::cout << "/n" << LOG_PREFIX << "Identified source as DefiLlama (using Chainlist-compatible parser)." << std::endl;
     }
     else if (lower_source == "eth") {
         url_to_download = "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-1.json"; parser_to_use = ParserType::ETH_LISTS;
