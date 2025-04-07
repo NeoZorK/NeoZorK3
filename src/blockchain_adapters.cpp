@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <map>
+#include <stdexcept>
 #include <chrono>       // For timing and sleep
 #include <thread>       // For std::this_thread::sleep_for
 #include <numeric>      // For std::accumulate
@@ -17,6 +19,9 @@
 using json = nlohmann::json;
 
 namespace neozork::blockchain_adapters {
+
+// Define a prefix for log messages originating from this module
+#define LOG_PREFIX_ADAPTER "    [Adapter] "
 
 // --- Helper function get_latest_block_number (без изменений) ---
 std::optional<long long> get_latest_block_number(const std::string& endpoint_url) {
@@ -228,6 +233,104 @@ std::optional<double> measure_block_speed(
     auto overall_duration = std::chrono::duration_cast<std::chrono::milliseconds>(overall_end_time - overall_start_time).count();
     std::cout << "[Adapter] Total time spent on measurement attempt: " << overall_duration << " ms." << std::endl;
     return std::nullopt;
+}
+
+
+// Structure to hold known DEX info internally before adding to config
+struct known_dex_entry {
+    std::string id;                 // Unique identifier (e.g., "spookyswap_v2", "uniswap_v2")
+    std::string name;               // User-friendly name (e.g., "SpookySwap V2", "Uniswap V2")
+    std::string factory_address;    // Factory contract address
+    std::optional<std::string> router_address; // Optional: Router contract address
+};
+
+// Hardcoded map of known DEXes per chain ID
+// chainId -> vector of known DEX entries
+const std::map<int, std::vector<known_dex_entry>> hardcoded_known_dexes = {
+    { 1, { // Ethereum
+        {"uniswap_v2", "Uniswap V2", "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f", "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"},
+        // {"uniswap_v3", "Uniswap V3", "0x1F98431c8aD98523631AE4a59f267346ea31F984", std::nullopt} // V3 Router is different
+    }},
+    { 56, { // Binance Smart Chain
+        {"pancakeswap_v2", "PancakeSwap V2", "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73", "0x10ED43C718714eb63d5aA57B78B54704E256024E"},
+        // {"pancakeswap_v3", "PancakeSwap V3", "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865", std::nullopt}
+    }},
+    { 137, { // Polygon
+        {"quickswap_v2", "QuickSwap V2", "0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32", "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"},
+        // {"quickswap_v3", "QuickSwap V3", "0x411b0faccC34F59A4EAb03D7879134476C521B35", std::nullopt}
+    }},
+    { 250, { // Fantom
+        {"spookyswap_v2", "SpookySwap V2", "0x152eE697f2E276fA89E96742e9bB9f1A45EffAEf", std::nullopt}, // Router V1: 0xF491e7B69E4244ad4002BC14e878a34207E38c29
+        {"spiritswap_v2", "SpiritSwap V2", "0xEF45d134b73241EDA7703fa787148D9C9F4950b0", "0x16327E3FbDaCA3bcF7E38F5Af2599D2DDClrA3aC"} // V2 Router? Check docs
+    }},
+    { 43114, { // Avalanche
+        {"traderjoe_v1", "Trader Joe V1", "0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4"},
+        {"pangolin_v2", "Pangolin V2", "0xefa94E708679016C5275582db4811E45FA8751A2", "0xE54Ca86531e17Ef3616d22Ca28b0D458b6C89106"}
+    }}
+    // Add more chains and DEXes here
+};
+
+/**
+ * @brief Discovers known DEXes for a specific blockchain and adds them to the config.
+ * Currently uses a hardcoded list of known DEX factory addresses per chain ID.
+ * @param config The main configuration object (mutable).
+ * @param blockchain_name_or_id The name or network ID of the blockchain.
+ * @return True if the process completed (even if no *new* DEXes were added), false on critical error (e.g., blockchain not found).
+ * @throws std::runtime_error on configuration errors.
+ */
+bool discover_dexes_for_blockchain(
+    neozork::config_manager::struct_config& config,
+    const std::string& blockchain_name_or_id)
+{
+    std::cout << LOG_PREFIX_ADAPTER << "Starting DEX discovery for blockchain: '" << blockchain_name_or_id << "'" << std::endl;
+
+    // 1. Find the blockchain (mutable reference needed to add DEXes)
+    auto bc_info_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+    if (!bc_info_ref_opt) {
+        // Error already printed by find_blockchain likely, or throw exception
+        std::cerr << LOG_PREFIX_ADAPTER << "Error: Blockchain '" << blockchain_name_or_id << "' not found in configuration." << std::endl;
+        return false; // Indicate failure
+    }
+    // Get a mutable reference to the blockchain info
+    neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get();
+
+    // 2. Check if DEXes are known for this chain ID
+    auto known_dexes_it = hardcoded_known_dexes.find(bc_info.network_id);
+    if (known_dexes_it == hardcoded_known_dexes.end()) {
+        std::cout << LOG_PREFIX_ADAPTER << "No hardcoded DEX information found for chain '" << bc_info.name << "' (ID: " << bc_info.network_id << ")." << std::endl;
+        return true; // Completed successfully, just nothing to add
+    }
+
+    const std::vector<known_dex_entry>& dexes_for_this_chain = known_dexes_it->second;
+    std::cout << LOG_PREFIX_ADAPTER << "Found " << dexes_for_this_chain.size() << " known DEX entries for '" << bc_info.name << "'. Checking config..." << std::endl;
+
+    // 3. Iterate through known DEXes and add them to config if not already present
+    int added_count = 0;
+    int skipped_count = 0;
+    for (const auto& known_dex : dexes_for_this_chain) {
+        
+        // Prepare the structure to add
+        neozork::config_manager::struct_dex_info dex_to_add;
+        dex_to_add.id = known_dex.id;
+        dex_to_add.name = known_dex.name;
+        dex_to_add.factory_address = known_dex.factory_address; // Assuming factory is mandatory
+        dex_to_add.router_address = known_dex.router_address;   // Optional router
+
+        // Attempt to add using config_manager function (handles duplicates)
+        if (neozork::config_manager::add_dex(bc_info, dex_to_add)) {
+            std::cout << LOG_PREFIX_ADAPTER << " -> Added '" << dex_to_add.name << "' (ID: " << dex_to_add.id << ") to config." << std::endl;
+            added_count++;
+        } else {
+            // Optional: Log skipped duplicates if needed for debugging
+            // std::cout << LOG_PREFIX_ADAPTER << " -> DEX '" << dex_to_add.name << "' (ID: " << dex_to_add.id << ") already exists in config. Skipping." << std::endl;
+            skipped_count++;
+        }
+    }
+
+    std::cout << LOG_PREFIX_ADAPTER << "Finished DEX discovery for '" << bc_info.name << "'. Added: " << added_count << ", Already existed/Skipped: " << skipped_count << "." << std::endl;
+
+    // Return true if any were added (indicates config was potentially modified)
+    return true; // Indicate successful completion
 }
 
 } // namespace neozork::blockchain_adapters

@@ -3,6 +3,7 @@
 #include "config_manager.h"
 #include "cli_parser.h"
 #include "ui.h"
+#include "blockchain_adapters.h" // Include for discover_dexes_for_blockchain
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -239,6 +240,70 @@ void handle_show_active_endpoints(
     neozork::ui::print_label("Total active endpoints displayed: ");
     neozork::ui::print_value(count);
     std::cout << std::endl;
+}
+
+/**
+ * @brief Handles the '--find-dexes' command.
+ * Attempts to find known DEXes on the specified blockchain and add them to the config.
+ * @param config The application configuration (mutable).
+ * @param params The parsed command line parameters (must include blockchain_name).
+ * @throws std::runtime_error if the blockchain is not found or other errors occur.
+ */
+void handle_find_dexes(
+    neozork::config_manager::struct_config& config, // Takes config by non-const ref
+    const neozork::cli_parser::command_parameters& params)
+{
+    // 1. Get Blockchain Name (Parser should guarantee it exists)
+    if (!params.blockchain_name) {
+        throw std::runtime_error("Internal Error: blockchain_name is required for handle_find_dexes.");
+    }
+    const std::string& blockchain_name_or_id = params.blockchain_name.value();
+
+    neozork::ui::print_label("\n--- Finding Known DEXes for Blockchain: ");
+    neozork::ui::print_value(blockchain_name_or_id);
+    std::cout << " ---\n";
+
+    // 2. Call the core logic function from blockchain_adapters
+    bool changes_made = false; // Track if config needs saving
+    try {
+        // Pass the mutable config reference
+        changes_made = neozork::blockchain_adapters::discover_dexes_for_blockchain(config, blockchain_name_or_id);
+
+        // Note: discover_dexes_for_blockchain prints its own detailed logs.
+        // We just need to handle the overall result and saving.
+
+        if (!changes_made) {
+             // This can happen if the blockchain isn't found OR if no DEXes were added/updated.
+             // The function discover_dexes_for_blockchain already logs specifics.
+             std::cout << "DEX discovery process completed, but no changes were made to the configuration for this run." << std::endl;
+        }
+
+    } catch (const std::exception& e) {
+        // Catch potential errors from find_blockchain or other issues
+        std::cerr << "Error during DEX discovery: " << e.what() << std::endl;
+        // Indicate failure, config likely not saved unless changes_made was true before exception
+        changes_made = false; // Ensure we don't save potentially inconsistent state
+        // Optionally re-throw or handle differently
+        return; // Exit handler on error
+    }
+
+    // 3. Save Config if changes were made by the discovery function
+    // Note: Our current discover_dexes_for_blockchain always returns true on completion,
+    //       but it internally tracks additions. We might need a better way
+    //       to signal actual modification back, or just save unconditionally if no error.
+    // Let's save if the process completed without throwing an exception,
+    // as even checking existing DEXes is a form of "completion".
+    // A more robust approach would have discover_dexes_for_blockchain return how many were added.
+    // For now, save if no exception occurred during the call.
+
+    std::cout << "DEX discovery finished. Saving configuration..." << std::endl;
+    try {
+        neozork::config_manager::save_config(config);
+        std::cout << "Configuration saved successfully." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR saving configuration after DEX discovery: " << e.what() << std::endl;
+    }
+
 }
 
 // --- Implementations for future command handlers ---

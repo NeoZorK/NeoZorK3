@@ -52,19 +52,18 @@ void handle_show_active_endpoints( // <-- Объявить
                                   );
 
 
-// --- Declarations for future command handlers ---
-
-// void handle_show_block_speeds(
-//     const neozork::config_manager::struct_config& config,
-//     const neozork::cli_parser::command_parameters& params
-// );
-
-// void handle_show_active_endpoints(
-//      const neozork::config_manager::struct_config& config,
-//      const neozork::cli_parser::command_parameters& params
-// );
-
-// ... other handlers ...
+/**
+ * @brief Handles the '--find-dexes' command.
+ * Attempts to find known DEXes on the specified blockchain and add them to the config.
+ * @param config The application configuration (mutable).
+ * @param params The parsed command line parameters (must include blockchain_name).
+ * @throws std::runtime_error if the blockchain is not found or other errors occur.
+ */
+void handle_find_dexes( // Takes config by non-const ref
+    neozork::config_manager::struct_config& config,
+    const neozork::cli_parser::command_parameters& params
+);
+// 
 
 } // namespace neozork::command_handlers
 

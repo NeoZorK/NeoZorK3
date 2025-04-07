@@ -42,6 +42,8 @@ void print_help() {
     << blue << "      --active" << reset << "                 Show active endpoints for a blockchain, sorted by latency.\n"
     << "                               Requires:" << yellow << "-b/--blockchain." << reset << "Optionally filter by\n"
     << "                               " << yellow << "-t/--connection-type" << reset << ".\n"
+    << blue << "      --find-dexes" << reset << "           Attempt to find known DEX contracts on a blockchain and\n"
+    << "                               add them to the config. Requires: " << yellow << "-b/--blockchain" << reset << ".\n"
     << bright_white << "\nCommon Options:" << reset << "\n"
     << blue << "  -b, --blockchain <name|id>"<<reset<<"   Specify the target blockchain name or network ID.\n"
     << "                               Required by most commands involving a specific chain.\n"
@@ -58,7 +60,6 @@ void print_help() {
     << "                               endpoint(s) listed in config are scanned.\n"
     // --- Planned Commands ---
     << bright_black << " Planned Commands: " << reset << "\n"
-    << "      --find-dexes             Discover DEXes on a blockchain.\n"
     << "      --find-pools             Discover pools for a DEX on a blockchain.\n"
     << "      --get-token-price        Get token price info.\n"
     << "      --find-pools-for-token\n"
@@ -136,6 +137,9 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         else if (arg == "--active") {
             check_multiple_commands(command_type::SHOW_ACTIVE_ENDPOINTS);
         }
+        else if (arg == "--find-dexes") {
+            check_multiple_commands(command_type::FIND_DEXES);
+        }
         
         // TODO: Add other command flags here (like --show-active-endpoints etc.)
         
@@ -183,7 +187,6 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             if (params.endpoint_url.has_value()) {
                 std::cerr << "Warning: --endpoint argument ignored for --info." << std::endl;
             }
-            // other options
         }
         
         else if (params.type == command_type::SHOW_BLOCK_SPEEDS) {
@@ -192,111 +195,124 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             }
         }
         
-        // TODO: Add other flags with arguments here (password, dex_id, etc.)
+        else if (params.type == command_type::FIND_DEXES) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --find-dexes");
+            }
+        }
+            
+            // TODO: Add other flags with arguments here (password, dex_id, etc.)
+            
+            // --- Unknown argument ---
+            else if (arg.rfind("-", 0) == 0) {
+                throw std::runtime_error("Unknown option: " + arg);
+            } else {
+                // Allow positional arguments only if we expect them for a specific command (none currently)
+                throw std::runtime_error("Unexpected positional argument: '" + arg + "'. Use flags like --blockchain or --endpoint.");
+            }
+        }
         
-        // --- Unknown argument ---
-        else if (arg.rfind("-", 0) == 0) {
-            throw std::runtime_error("Unknown option: " + arg);
-        } else {
-            // Allow positional arguments only if we expect them for a specific command (none currently)
-            throw std::runtime_error("Unexpected positional argument: '" + arg + "'. Use flags like --blockchain or --endpoint.");
+        // --- Post-parsing Validation ---
+        
+        // Validation for DISCOVER_ENDPOINTS
+        if (params.type == command_type::DISCOVER_ENDPOINTS) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --discover-endpoints");
+            }
+            if (params.sources.empty()) {
+                const std::string default_source = "chain";
+                std::cout << "Info: No --source specified for discovery, using default: '" << default_source << "'" << std::endl;
+                params.sources.push_back(default_source);
+            }
+            // Check for irrelevant flags
+            if (params.endpoint_url.has_value()) {
+                std::cerr << "Warning: --endpoint argument ignored for --discover-endpoints command." << std::endl;
+            }
+            if (params.connection_type.has_value()) {
+                std::cerr << "Warning: --connection-type argument ignored for --discover-endpoints command." << std::endl;
+            }
         }
+        // Validation for SCAN_ENDPOINTS
+        else if (params.type == command_type::SCAN_ENDPOINTS) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --scan");
+            }
+            // Check for irrelevant flags
+            if (params.endpoint_url.has_value()) {
+                std::cerr << "Warning: --endpoint argument ignored for --scan command (use --scan-1 instead)." << std::endl;
+            }
+            if (!params.sources.empty()) {
+                std::cerr << "Warning: --source argument ignored for --scan command." << std::endl;
+            }
+        }
+        // Validation for SCAN_SINGLE_ENDPOINT
+        else if (params.type == command_type::SCAN_SINGLE_ENDPOINT) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --scan-1");
+            }
+            if (!params.endpoint_url.has_value()) {
+                throw std::runtime_error("--endpoint <url> is required for --scan-1");
+            }
+            if (!params.sources.empty()) {
+                std::cerr << "Warning: --source argument ignored for --scan-1 command." << std::endl;
+            }
+        }
+        
+        // Validation for MEASURE_BLOCK_SPEED
+        else if (params.type == command_type::MEASURE_BLOCK_SPEED) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --get-block");
+            }
+            // Check for irrelevant flags (optional, good practice)
+            if (params.endpoint_url.has_value()) {
+                std::cerr << "Warning: --endpoint argument ignored for --get-block command." << std::endl;
+            }
+            if (params.connection_type.has_value()) {
+                std::cerr << "Warning: --connection-type argument ignored for --get-block command." << std::endl;
+            }
+            if (!params.sources.empty()) {
+                std::cerr << "Warning: --source argument ignored for --get-block command." << std::endl;
+            }
+        }
+        
+        // Validation for SHOW_ACTIVE_ENDPOINTS
+        else if (params.type == command_type::SHOW_ACTIVE_ENDPOINTS) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --active");
+            }
+            // Check for irrelevant flags
+            if (params.endpoint_url.has_value()) {
+                std::cerr << "Warning: --endpoint argument ignored for --active." << std::endl;
+            }
+            if (!params.sources.empty()) {
+                std::cerr << "Warning: --source argument ignored for --active." << std::endl;
+            }
+            if (params.search_term.has_value()) {
+                std::cerr << "Warning: --search-term argument ignored for --active." << std::endl;
+            }
+        }
+        
+        // Validation for SHOW_BLOCK_SPEEDS
+        else if (params.type == command_type::FIND_DEXES) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --find-dexes");
+            }
+        }
+        
+        // Default action if no command specified
+        if (params.type == command_type::NONE) {
+            // If other options were given without a command, it's likely an error
+            if (params.blockchain_name.has_value() || params.endpoint_url.has_value() || params.connection_type.has_value() || !params.sources.empty()) {
+                std::cerr << "Warning: Options provided without a specific command." << std::endl;
+                params.type = command_type::HELP; // Show help in case of confusion
+            } else {
+                std::cout << "No command specified. Running default action (currently shows help)." << std::endl;
+                // TODO: Decide on default action later (e.g., run tasks or show status)
+                params.type = command_type::HELP; // Default to showing help for now
+            }
+        }
+        
+        return params; // Return collected parameters
     }
     
-    // --- Post-parsing Validation ---
-    
-    // Validation for DISCOVER_ENDPOINTS
-    if (params.type == command_type::DISCOVER_ENDPOINTS) {
-        if (!params.blockchain_name.has_value()) {
-            throw std::runtime_error("--blockchain <name|id> is required for --discover-endpoints");
-        }
-        if (params.sources.empty()) {
-            const std::string default_source = "chain";
-            std::cout << "Info: No --source specified for discovery, using default: '" << default_source << "'" << std::endl;
-            params.sources.push_back(default_source);
-        }
-        // Check for irrelevant flags
-        if (params.endpoint_url.has_value()) {
-            std::cerr << "Warning: --endpoint argument ignored for --discover-endpoints command." << std::endl;
-        }
-        if (params.connection_type.has_value()) {
-            std::cerr << "Warning: --connection-type argument ignored for --discover-endpoints command." << std::endl;
-        }
-    }
-    // Validation for SCAN_ENDPOINTS
-    else if (params.type == command_type::SCAN_ENDPOINTS) {
-        if (!params.blockchain_name.has_value()) {
-            throw std::runtime_error("--blockchain <name|id> is required for --scan");
-        }
-        // Check for irrelevant flags
-        if (params.endpoint_url.has_value()) {
-            std::cerr << "Warning: --endpoint argument ignored for --scan command (use --scan-1 instead)." << std::endl;
-        }
-        if (!params.sources.empty()) {
-            std::cerr << "Warning: --source argument ignored for --scan command." << std::endl;
-        }
-    }
-    // Validation for SCAN_SINGLE_ENDPOINT
-    else if (params.type == command_type::SCAN_SINGLE_ENDPOINT) {
-        if (!params.blockchain_name.has_value()) {
-            throw std::runtime_error("--blockchain <name|id> is required for --scan-1");
-        }
-        if (!params.endpoint_url.has_value()) {
-            throw std::runtime_error("--endpoint <url> is required for --scan-1");
-        }
-        if (!params.sources.empty()) {
-            std::cerr << "Warning: --source argument ignored for --scan-1 command." << std::endl;
-        }
-    }
-    
-    // Validation for MEASURE_BLOCK_SPEED
-    else if (params.type == command_type::MEASURE_BLOCK_SPEED) {
-        if (!params.blockchain_name.has_value()) {
-            throw std::runtime_error("--blockchain <name|id> is required for --get-block");
-        }
-        // Check for irrelevant flags (optional, good practice)
-        if (params.endpoint_url.has_value()) {
-            std::cerr << "Warning: --endpoint argument ignored for --get-block command." << std::endl;
-        }
-        if (params.connection_type.has_value()) {
-            std::cerr << "Warning: --connection-type argument ignored for --get-block command." << std::endl;
-        }
-        if (!params.sources.empty()) {
-            std::cerr << "Warning: --source argument ignored for --get-block command." << std::endl;
-        }
-    }
-    
-    // Validation for SHOW_ACTIVE_ENDPOINTS
-    else if (params.type == command_type::SHOW_ACTIVE_ENDPOINTS) {
-        if (!params.blockchain_name.has_value()) {
-            throw std::runtime_error("--blockchain <name|id> is required for --active");
-        }
-        // Check for irrelevant flags
-        if (params.endpoint_url.has_value()) {
-            std::cerr << "Warning: --endpoint argument ignored for --active." << std::endl;
-        }
-        if (!params.sources.empty()) {
-            std::cerr << "Warning: --source argument ignored for --active." << std::endl;
-        }
-        if (params.search_term.has_value()) {
-            std::cerr << "Warning: --search-term argument ignored for --active." << std::endl;
-        }
-    }
-    
-    // Default action if no command specified
-    if (params.type == command_type::NONE) {
-        // If other options were given without a command, it's likely an error
-        if (params.blockchain_name.has_value() || params.endpoint_url.has_value() || params.connection_type.has_value() || !params.sources.empty()) {
-            std::cerr << "Warning: Options provided without a specific command." << std::endl;
-            params.type = command_type::HELP; // Show help in case of confusion
-        } else {
-            std::cout << "No command specified. Running default action (currently shows help)." << std::endl;
-            // TODO: Decide on default action later (e.g., run tasks or show status)
-            params.type = command_type::HELP; // Default to showing help for now
-        }
-    }
-    
-    return params; // Return collected parameters
-}
-
 } // namespace neozork::cli_parser

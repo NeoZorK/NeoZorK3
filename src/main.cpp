@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
     using namespace neozork::endpoint_discovery;
     using namespace neozork::endpoint_scanner;
     using namespace neozork::blockchain_adapters;
+    using namespace neozork::command_handlers;
     
     // 1. Ensure configuration file exists (create default if missing)
     try {
@@ -61,6 +62,27 @@ int main(int argc, char* argv[]) {
     
     // 3. Execute the requested command
     try {
+        
+        // --- Load config only when needed, and make it mutable if command requires it ---
+        bool need_mutable_config = (
+                                    params.type == command_type::CONFIG_INIT ||
+                                    params.type == command_type::DISCOVER_ENDPOINTS ||
+                                    params.type == command_type::SCAN_ENDPOINTS ||
+                                    params.type == command_type::SCAN_SINGLE_ENDPOINT ||
+                                    params.type == command_type::MEASURE_BLOCK_SPEED ||
+                                    params.type == command_type::FIND_DEXES
+                                    );
+        
+        // Load config (read-only by default) into optional
+        std::optional<struct_config> config_opt;
+        
+        // Don't load for HELP or CONFIG_INIT
+        if (params.type != command_type::HELP && params.type != command_type::CONFIG_INIT) {
+            std::cout << "Loading configuration..." << std::endl;
+            config_opt.emplace(load_config());
+        }
+        
+        // --- Execute command based on type ---
         switch(params.type) {
                 
                 // --- Handle HELP ---
@@ -75,128 +97,134 @@ int main(int argc, char* argv[]) {
                 std::cout << "Configuration file initialized successfully." << std::endl;
                 break;
                 
-                // --- Handle DISCOVER_ENDPOINTS ---
+                // --- Handle DISCOVER_ENDPOINTS (Mutable) ---
             case command_type::DISCOVER_ENDPOINTS:
             {
-                std::cout << "Loading configuration for discovery..." << std::endl;
-                struct_config current_config = load_config();
+                if (!config_opt) {
+                    throw std::runtime_error("Internal error: Config not loaded for DISCOVER_ENDPOINTS.");
+                }
+                struct_config& mutable_config = config_opt.value();
                 
-                // Ensure blockchain name is present (already checked by parser, but double check)
-                if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for discovery."); }
-                
-                // Start endpoint discovery
-                discover_endpoints(params.blockchain_name.value(), params.sources, current_config);
-                
-                // Config is saved inside discover_endpoints if changes were made
+                if (!params.blockchain_name) {
+                    throw std::runtime_error("Internal error: blockchain name missing for discovery.");
+                    
+                }
+                // Start endpoint discovery - saving is handled inside this function now
+                // Ensure arguments match the function declaration order: string, vector, config&
+                discover_endpoints(params.blockchain_name.value(), params.sources, mutable_config);
                 std::cout << "Endpoint discovery process finished." << std::endl;
             }
                 break;
                 
-                // --- Handle SCAN_ENDPOINTS ---
+                // --- Handle SCAN_ENDPOINTS (Mutable) ---
             case command_type::SCAN_ENDPOINTS:
             {
-                std::cout << "Loading configuration for scanning..." << std::endl;
-                struct_config current_config = load_config();
+                if (!config_opt) { throw std::runtime_error("Internal error: Config not loaded for SCAN_ENDPOINTS."); }
+                struct_config& mutable_config = config_opt.value();
                 
-                // Ensure blockchain name is present
                 if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for scan."); }
-                
                 std::cout << "Starting endpoint scan..." << std::endl;
-                run_scan_endpoints(current_config, params.blockchain_name.value(), params.connection_type);
+                run_scan_endpoints(mutable_config, params.blockchain_name.value(), params.connection_type);
                 
+                // Save config after scanning
                 std::cout << "Scan finished. Saving configuration..." << std::endl;
-                save_config(current_config);
+                save_config(mutable_config);
                 std::cout << "Configuration saved." << std::endl;
             }
                 break;
                 
-                // --- Handle SCAN_SINGLE_ENDPOINT ---
+                // --- Handle SCAN_SINGLE_ENDPOINT (Mutable) ---
             case command_type::SCAN_SINGLE_ENDPOINT:
             {
-                std::cout << "Loading configuration for single endpoint scan..." << std::endl;
-                struct_config current_config = load_config();
+                if (!config_opt) { throw std::runtime_error("Internal error: Config not loaded for SCAN_SINGLE_ENDPOINT."); }
+                struct_config& mutable_config = config_opt.value();
                 
-                // Ensure blockchain name and endpoint URL are present
                 if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for single scan."); }
                 if (!params.endpoint_url) { throw std::runtime_error("Internal error: endpoint URL missing for single scan."); }
-                
                 std::cout << "Starting single endpoint scan..." << std::endl;
-                run_scan_single_endpoint(current_config, params.blockchain_name.value(), params.endpoint_url.value(), params.connection_type);
+                run_scan_single_endpoint(mutable_config, params.blockchain_name.value(), params.endpoint_url.value(), params.connection_type);
                 
+                // Save config after scanning
                 std::cout << "Scan finished. Saving configuration..." << std::endl;
-                save_config(current_config); // Save updated status
+                save_config(mutable_config);
                 std::cout << "Configuration saved." << std::endl;
             }
                 break;
                 
-                // --- Handle MEASURE_BLOCK_SPEED ---
+                // --- Handle MEASURE_BLOCK_SPEED (Mutable) ---
             case command_type::MEASURE_BLOCK_SPEED:
             {
-                std::cout << "Loading configuration for block speed measurement..." << std::endl;
-                struct_config current_config = load_config();
-                // Ensure blockchain name is present
+                if (!config_opt) { throw std::runtime_error("Internal error: Config not loaded for MEASURE_BLOCK_SPEED."); }
+                struct_config& mutable_config = config_opt.value();
+                
                 if (!params.blockchain_name) { throw std::runtime_error("Internal error: blockchain name missing for measure speed."); }
-                
                 std::cout << "Starting block speed measurement..." << std::endl;
-                std::optional<double> measured_speed = measure_block_speed(current_config, params.blockchain_name.value());
+                std::optional<double> measured_speed = measure_block_speed(mutable_config, params.blockchain_name.value());
                 
+                // Save config only if measurement was successful
                 if(measured_speed) {
                     std::cout << "Measurement finished successfully. Average block time: " << *measured_speed << " ms. Saving configuration..." << std::endl;
-                    save_config(current_config); // Save updated block speed
+                    save_config(mutable_config);
                     std::cout << "Configuration saved." << std::endl;
                 } else {
                     std::cerr << "Block speed measurement failed. Configuration not saved." << std::endl;
-                    // Optionally return different exit code?
                 }
             }
                 break;
                 
-                // --- Handle SHOW_ENDPOINT_INFO ---
+                // --- Handle FIND_DEXES (Mutable) ---
+            case command_type::FIND_DEXES:
+            {
+                if (!config_opt) {
+                    throw std::runtime_error("Internal error: Config not loaded for FIND_DEXES.");
+                }
+                struct_config& mutable_config = config_opt.value();
+                
+                // Call the function to find DEXes
+                handle_find_dexes(mutable_config, params);
+            }
+                break;
+                
+                // --- Read-only commands ---
             case command_type::SHOW_ENDPOINT_INFO:
-            {
-                std::cout << "Loading configuration..." << std::endl;
-                struct_config current_config = load_config();
-                // --- Указать полное имя функции ---
-                neozork::command_handlers::handle_show_endpoint_info(current_config, params);
-            }
-                break;
-                
-                // --- Handle SHOW_BLOCK_SPEEDS ---
             case command_type::SHOW_BLOCK_SPEEDS:
-            {
-                std::cout << "Loading configuration..." << std::endl;
-                struct_config current_config = load_config();
-                neozork::command_handlers::handle_show_block_speeds(current_config, params);
-            }
-                break;
-                
-                // --- Handle SHOW_ACTIVE_ENDPOINTS ---
             case command_type::SHOW_ACTIVE_ENDPOINTS:
             {
-                std::cout << "Loading configuration..." << std::endl;
-                struct_config current_config = load_config();
-                neozork::command_handlers::handle_show_active_endpoints(current_config, params);
+                if (!config_opt) { throw std::runtime_error("Internal error: Config not loaded for read-only command."); }
+                
+                // Use const reference to avoid copying
+                const struct_config& readonly_config = config_opt.value();
+                
+                if (params.type == command_type::SHOW_ENDPOINT_INFO) {
+                    handle_show_endpoint_info(readonly_config, params);
+                } else if (params.type == command_type::SHOW_BLOCK_SPEEDS) {
+                    handle_show_block_speeds(readonly_config, params);
+                } else if (params.type == command_type::SHOW_ACTIVE_ENDPOINTS) {
+                    handle_show_active_endpoints(readonly_config, params);
+                }
             }
-                break;
+                break; // End of block for read-only commands
+                
                 
                 // --- Handle NONE ---
             case command_type::NONE:
                 // If no command was specified, parser defaults to HELP now.
-                // If we change default action later, handle it here.
                 std::cout << "No specific command executed." << std::endl;
                 break;
                 
-                // TODO: Add handling for other command_type as they are implemented
-                // case command_type::SHOW_ACTIVE_ENDPOINTS: ...
-                
+                // --- Handle unknown command ---
             default:
                 std::cerr << "ERROR: Unhandled command type in main!" << std::endl;
                 print_help();
                 return 1;
-        }
+        } // --- End switch ---
+        
+        // --- Save config if it was modified ---
     } catch (const std::exception& e) {
         std::cerr << "ERROR during command execution: " << e.what() << std::endl;
         return 1;
+        
+        // Catch-all for any other exceptions
     } catch (...) {
         std::cerr << "Unknown runtime error during command execution." << std::endl;
         return 1;

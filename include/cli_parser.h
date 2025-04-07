@@ -21,8 +21,9 @@ enum class command_type {
     MEASURE_BLOCK_SPEED,  // Run block speed measurement
     SHOW_ENDPOINT_INFO,    // Show endpoint info
     SHOW_BLOCK_SPEEDS,     // Show block speeds
-    SHOW_ACTIVE_ENDPOINTS  // Show active endpoints
-    // TODO: Add FIND_ARBITRAGE_ONCE, RUN_TASKS etc. later
+    SHOW_ACTIVE_ENDPOINTS,  // Show active endpoints
+    FIND_DEXES             // Discover DEXes for a blockchain 
+      // TODO: Add FIND_POOLS, FIND_ARBITRAGE_ONCE, RUN_TASKS etc. later
 };
 
 // Struct to hold command parameters
