@@ -668,4 +668,67 @@ bool add_endpoint(struct_blockchain_info& bc_info_ref, const struct_endpoint& ne
     return true; // Indicate success, new endpoint added
 }
 
+// --- Implementation for find_all_blockchains_by_name (Mutable) ---
+std::vector<std::reference_wrapper<struct_blockchain_info>> find_all_blockchains_by_name(
+                                                                                         struct_config& config_ref,
+                                                                                         const std::string& name_substring)
+{
+    std::vector<std::reference_wrapper<struct_blockchain_info>> found_blockchains;
+    if (name_substring.empty()) {
+        return found_blockchains; // Return empty if search term is empty
+    }
+    
+    // Prepare lowercase search term once
+    std::string lower_search = name_substring;
+    std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    
+    // Iterate through all blockchains
+    for (auto& bc : config_ref.blockchains) {
+        // Prepare lowercase name for comparison
+        std::string lower_name = bc.name;
+        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+        
+        // Check if the name contains the substring
+        if (lower_name.find(lower_search) != std::string::npos) {
+            // Add a reference to the matching blockchain to the result vector
+            found_blockchains.push_back(std::ref(bc));
+        }
+    }
+    return found_blockchains;
+}
+
+
+// --- Implementation for find_all_blockchains_by_name (Const) ---
+std::vector<std::reference_wrapper<const struct_blockchain_info>> find_all_blockchains_by_name(
+                                                                                               const struct_config& config_ref,
+                                                                                               const std::string& name_substring)
+{
+    std::vector<std::reference_wrapper<const struct_blockchain_info>> found_blockchains;
+    if (name_substring.empty()) {
+        return found_blockchains;
+    }
+    
+    // Prepare lowercase search term once
+    std::string lower_search = name_substring;
+    std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    
+    // Iterate through all blockchains
+    for (const auto& bc : config_ref.blockchains) {
+        // Prepare lowercase name for comparison
+        std::string lower_name = bc.name;
+        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+        
+        // Check if the name contains the substring
+        if (lower_name.find(lower_search) != std::string::npos) {
+            // Add a const reference to the matching blockchain
+            found_blockchains.push_back(std::cref(bc));
+        }
+    }
+    return found_blockchains;
+}
+
 } // namespace neozork::config_manager
