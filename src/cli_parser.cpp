@@ -60,7 +60,7 @@ void print_help() {
     << "                               Optionally specify connection type "<<yellow<<"(https, wss, etc.)"<<reset<<"\n"
     << "                               for scanning commands. If omitted, all types for the\n"
     << "                               endpoint(s) listed in config are scanned.\n"
-    << blue << "      --dbr <ms>"<< reset << "              Set delay in milliseconds between pool discovery requests\n"
+    << blue << "      --dbr <ms>"<< reset << "               Set delay in milliseconds between pool discovery requests\n"
     << "                               (Valid: 1-3000). Used only with " << yellow << "--find-pools" << reset << ".\n"
     // --- Planned Commands ---
     << bright_black << " Planned Commands: " << reset << "\n"
