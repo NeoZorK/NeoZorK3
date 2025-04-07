@@ -446,72 +446,66 @@ void handle_find_dexes(
     
 } // end handle_find_dexes
 
-// --- Handler for DISCOVER_ENDPOINTS (MODIFIED for multi-chain name search) ---
+// --- Handler for DISCOVER_ENDPOINTS (Uses New Sync Logic) ---
 void handle_discover_endpoints(
-                               neozork::config_manager::struct_config& config,
-                               const neozork::cli_parser::command_parameters& params)
+    neozork::config_manager::struct_config& config,
+    const neozork::cli_parser::command_parameters& params)
 {
-    // 1. Get Blockchain Name or ID & Sources
-    if (!params.blockchain_name) {
-        throw std::runtime_error("Internal Error: blockchain_name is required for handle_discover_endpoints.");
+    // 1. Get Blockchain Name Filter & Sources
+    // Note: blockchain_name is now treated as a FILTER.
+    std::string name_filter = params.blockchain_name.value_or("*"); // Default to "*" maybe? Let's require it for now.
+     if (!params.blockchain_name) {
+         // Or handle default "*" if -b is omitted. Requires CLI parser change.
+         throw std::runtime_error("--blockchain <name_filter> is required for --discover-endpoints (use '*' to attempt sync for all chains found in source).");
+     }
+     name_filter = params.blockchain_name.value(); // Use the provided filter
+
+    const std::vector<std::string>& sources = params.sources; // sources might be empty
+
+    // Use default source if none provided
+    std::vector<std::string> sources_to_use = sources;
+    if (sources_to_use.empty()) {
+         sources_to_use.push_back("chain"); // Default source
+         std::cout << "Info: No --source specified, using default source: 'chain'" << std::endl;
     }
-    const std::string& blockchain_name_or_id = params.blockchain_name.value();
-    const std::vector<std::string>& sources = params.sources; // sources might be empty (handled by discover_endpoints)
-    
-    neozork::ui::print_label("\n--- Discovering Endpoints for Blockchain(s) matching: ");
-    neozork::ui::print_value(blockchain_name_or_id);
-    std::cout << " ---\n";
-    
-    // 2. Determine if input is ID or Name Search
-    bool is_id_search = false;
-    long long search_id_ll = -1;
+
+    // Print info about the operation
+    neozork::ui::print_label("\n--- Discovering and Synchronizing Chains/Endpoints ---\n");
+    neozork::ui::print_label("Name Filter: "); neozork::ui::print_value(name_filter); std::cout << std::endl;
+    neozork::ui::print_label("Sources: ");
+    for(size_t i=0; i<sources_to_use.size(); ++i) {
+         neozork::ui::print_value(sources_to_use[i]);
+         if (i < sources_to_use.size() - 1) std::cout << ", ";
+    }
+    std::cout << std::endl;
+
+
+    // 2. Call the new core logic function discover_and_sync_chains
+    bool changes_made = false;
     try {
-        search_id_ll = std::stoll(blockchain_name_or_id);
-        if (search_id_ll > 0) is_id_search = true;
-    } catch(...) { is_id_search = false; }
-    
-    // 3. Find target blockchain(s)
-    std::vector<std::reference_wrapper<neozork::config_manager::struct_blockchain_info>> target_blockchains;
-    bool needs_saving = false; // Flag if discover_endpoints reported changes
-    
-    if (is_id_search) {
-        // Use original find_blockchain for specific ID
-        auto bc_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
-        if (bc_ref_opt) {
-            // Call core logic directly for the single blockchain
-            std::cout << "\nProcessing blockchain: " << bc_ref_opt.value().get().name << " (ID: " << bc_ref_opt.value().get().network_id << ")" << std::endl;
-            // Pass config by reference, ID string, and sources
-            // Assuming discover_endpoints now returns bool indicating if saving is needed
-            // Correct argument order: string, vector, config&
-            if(neozork::endpoint_discovery::discover_endpoints(blockchain_name_or_id, sources, config)) {
-                needs_saving = true; // Assuming discover_endpoints returns bool indicating changes were made
-            }
-        } else {
-            std::cerr << "Error: Blockchain with ID '" << blockchain_name_or_id << "' not found in configuration." << std::endl;
-        }
-    } else {
-        // Find all matching by name substring
-        target_blockchains = neozork::config_manager::find_all_blockchains_by_name(config, blockchain_name_or_id);
-        if (target_blockchains.empty()) {
-            std::cout << "No blockchains found in configuration with a name containing '" << blockchain_name_or_id << "'." << std::endl;
-        } else {
-            std::cout << "Found " << target_blockchains.size() << " matching blockchain(s). Processing..." << std::endl;
-            for (auto& bc_ref_wrapper : target_blockchains) {
-                neozork::config_manager::struct_blockchain_info& current_bc_info = bc_ref_wrapper.get();
-                std::cout << "\n--- Processing: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << ") ---" << std::endl;
-                
-                // Use specific ID for the call within the loop with correct argument order
-                if(neozork::endpoint_discovery::discover_endpoints(std::to_string(current_bc_info.network_id), sources, config)) {
-                    needs_saving = true;
-                }
-            }
-        }
+         // Pass the mutable config reference, the name filter, and sources
+         // This is the call to the NEW function:
+         changes_made = neozork::endpoint_discovery::discover_and_sync_chains(config, name_filter, sources_to_use);
+
+    } catch (const std::exception& e) {
+         std::cerr << "Error during discovery/sync process: " << e.what() << std::endl;
+         changes_made = false; // Don't save on error
     }
-    
-    std::cout << "\nFinished processing endpoint discovery." << std::endl;
-    // Note: Saving is assumed to be handled within discover_endpoints itself now.
-    // If not, add saving logic here based on 'needs_saving' flag.
-}
+
+    // 3. Save config if changes were reported by the sync function
+    std::cout << "\nDiscovery/sync process finished." << std::endl;
+    if (changes_made) {
+         std::cout << "Saving configuration due to detected changes..." << std::endl;
+         try {
+             neozork::config_manager::save_config(config);
+             std::cout << "Configuration saved successfully." << std::endl;
+         } catch (const std::exception& e) {
+             std::cerr << "ERROR saving configuration after discovery/sync: " << e.what() << std::endl;
+         }
+    } else {
+          std::cout << "No changes detected requiring configuration save." << std::endl;
+    }
+} // end handle_discover_endpoints
 
 
 // --- Handler for SCAN_ENDPOINTS (MODIFIED for multi-chain name search) ---
