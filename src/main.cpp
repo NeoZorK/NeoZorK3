@@ -63,16 +63,6 @@ int main(int argc, char* argv[]) {
     // 3. Execute the requested command
     try {
         
-        // --- Load config only when needed, and make it mutable if command requires it ---
-        bool need_mutable_config = (
-                                    params.type == command_type::CONFIG_INIT ||
-                                    params.type == command_type::DISCOVER_ENDPOINTS ||
-                                    params.type == command_type::SCAN_ENDPOINTS ||
-                                    params.type == command_type::SCAN_SINGLE_ENDPOINT ||
-                                    params.type == command_type::MEASURE_BLOCK_SPEED ||
-                                    params.type == command_type::FIND_DEXES
-                                    );
-        
         // Load config (read-only by default) into optional
         std::optional<struct_config> config_opt;
         
