@@ -120,6 +120,27 @@ void print_endpoint_details(
         
     }
     
+    // Print other endpoint details
+    if (!bc_info.dexes.empty()) {
+         print_label("  Known DEXes on this Blockchain:\n");
+         int dex_count = 0;
+         for (const auto& dex : bc_info.dexes) {
+             dex_count++;
+             // Indent DEX info slightly
+             std::cout << "    " << dex_count << ". ";
+             print_value(dex.name); // Print DEX Name
+             std::cout << " (ID: ";
+             print_value(dex.id);   // Print DEX ID
+             std::cout << ")" << std::endl;
+             // Optionally print Factory address too if needed:
+             // std::cout << "       Factory: "; print_value(dex.factory_address.value_or("N/A")); std::cout << std::endl;
+         }
+    } else {
+         print_label("  Known DEXes on this Blockchain: ");
+         print_value("(None configured yet)");
+         std::cout << std::endl;
+    }
+    
     std::cout << "----------------------------------------" << std::endl;
 }
 
