@@ -244,30 +244,66 @@ struct known_dex_entry {
     std::optional<std::string> router_address; // Optional: Router contract address
 };
 
-// Hardcoded map of known DEXes per chain ID
+// --- Expanded Hardcoded Map of Known DEXes ---
 // chainId -> vector of known DEX entries
+// NOTE: Addresses should be verified with official DEX documentation. V3 routers omitted/nullopt.
 const std::map<int, std::vector<known_dex_entry>> hardcoded_known_dexes = {
-    { 1, { // Ethereum
+    { 1, {
+        // Ethereum
         {"uniswap_v2", "Uniswap V2", "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f", "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"},
-        // {"uniswap_v3", "Uniswap V3", "0x1F98431c8aD98523631AE4a59f267346ea31F984", std::nullopt} // V3 Router is different
+        {"sushiswap_v2", "SushiSwap V2", "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac", "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"},
+        {"uniswap_v3", "Uniswap V3", "0x1F98431c8aD98523631AE4a59f267346ea31F984", std::nullopt}
+        // V3 Router complex
     }},
-    { 56, { // Binance Smart Chain
+    { 56, {
+        // Binance Smart Chain (BSC)
         {"pancakeswap_v2", "PancakeSwap V2", "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73", "0x10ED43C718714eb63d5aA57B78B54704E256024E"},
-        // {"pancakeswap_v3", "PancakeSwap V3", "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865", std::nullopt}
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"},
+        {"biswap_v1", "BiSwap", "0x858E3312ed3A876947EA49d572A7C42DE08af7EE", "0x3a6d8cA21D1CF76F653A67577FA0D27453350dD8"},
+        {"pancakeswap_v3", "PancakeSwap V3", "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865", std::nullopt}
+        // V3 Router complex
     }},
-    { 137, { // Polygon
+    { 137, {
+        // Polygon (Matic)
         {"quickswap_v2", "QuickSwap V2", "0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32", "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"},
-        // {"quickswap_v3", "QuickSwap V3", "0x411b0faccC34F59A4EAb03D7879134476C521B35", std::nullopt}
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"},
+        {"uniswap_v3", "Uniswap V3", "0x1F98431c8aD98523631AE4a59f267346ea31F984", std::nullopt}
+        // V3 Router complex
     }},
-    { 250, { // Fantom
-        {"spookyswap_v2", "SpookySwap V2", "0x152eE697f2E276fA89E96742e9bB9f1A45EffAEf", std::nullopt}, // Router V1: 0xF491e7B69E4244ad4002BC14e878a34207E38c29
-        {"spiritswap_v2", "SpiritSwap V2", "0xEF45d134b73241EDA7703fa787148D9C9F4950b0", "0x16327E3FbDaCA3bcF7E38F5Af2599D2DDClrA3aC"} // V2 Router? Check docs
+    { 250, {
+        // Fantom
+        {"spookyswap_v2", "SpookySwap V2", "0x152eE697f2E276fA89E96742e9bB9f1A45EffAEf", "0xF491e7B69E4244ad4002BC14e878a34207E38c29"}, // Using V1 Router
+        {"spiritswap_v2", "SpiritSwap V2", "0xEF45d134b73241EDA7703fa787148D9C9F4950b0", "0x16327E3FbDaCA3bcF7E38F5Af2599D2DDClrA3aC"},
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"}
     }},
-    { 43114, { // Avalanche
+    { 43114, {
+        // Avalanche C-Chain
         {"traderjoe_v1", "Trader Joe V1", "0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4"},
-        {"pangolin_v2", "Pangolin V2", "0xefa94E708679016C5275582db4811E45FA8751A2", "0xE54Ca86531e17Ef3616d22Ca28b0D458b6C89106"}
+        {"pangolin_v2", "Pangolin V2", "0xefa94E708679016C5275582db4811E45FA8751A2", "0xE54Ca86531e17Ef3616d22Ca28b0D458b6C89106"},
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"}
+        // Note: Trader Joe V2 uses LBRouter, different architecture, omitted for now
+    }},
+    { 42161, {
+        // Arbitrum One
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"},
+        {"uniswap_v3", "Uniswap V3", "0x1F98431c8aD98523631AE4a59f267346ea31F984", std::nullopt},
+        {"camelot_v2", "Camelot V2", "0x6EcCab422D763aC031210895C81787E87B43A652", "0xc873fEcbd354f5A56E00E710B90EF4201db2448d"}
+    }},
+    { 10, {
+        // Optimism
+        {"uniswap_v3", "Uniswap V3", "0x1F98431c8aD98523631AE4a59f267346ea31F984", std::nullopt},
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"},
+        {"velodrome_v2", "Velodrome V2", "0xF1B99e3E573A3A7f118B7F226E879212E8551064", "0x9c12939390052919aF3155f41Bf4150fd7665436"}
+    }},
+    { 8453, {
+        // Base
+        {"uniswap_v3", "Uniswap V3", "0x33128a8fC17869897dcE68Ed026d694621f6FDfD", std::nullopt},
+        
+        // Base has different V3 Factory
+        {"sushiswap_v2", "SushiSwap V2", "0xc35DADB65012eC5796536bD9864eD8773aBc74C4", "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"},
+        {"aerodrome_v1", "Aerodrome", "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", "0xcF77a3Ba9A5CA399B7C97c74d54e5b1Beb874E43"}
     }}
-    // Add more chains and DEXes here
+    // Add more chains and DEXes here as needed
 };
 
 /**
