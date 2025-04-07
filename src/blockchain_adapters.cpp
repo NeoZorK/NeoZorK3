@@ -86,27 +86,64 @@ std::optional<std::string> try_eth_call_with_failover(
             
             const std::string& response_body = result.body.value();
             
-            // Check for JSON RPC error within the body
+            // Check if the response body is valid JSON
             try {
                 json j = json::parse(response_body);
-                if (j.is_object() && j.contains("error") && !j["error"].is_null()) {
-                    std::cerr << LOG_PREFIX_ADAPTER << "  -> RPC Error received: " << j["error"].dump() << ". Trying next endpoint." << std::endl;
+                // Check if it's a JSON object
+                if (j.is_object()) {
+                    // Check for JSON RPC Error field
+                    if (j.contains("error") && !j["error"].is_null()) {
+                        std::cerr << LOG_PREFIX_ADAPTER << "  -> RPC Error received: " << j["error"].dump() << ". Trying next endpoint." << std::endl;
+                        continue; // Try next endpoint
+                    }
+                    // Check for JSON RPC Result field
+                    else if (j.contains("result")) {
+                        // Check if result is a string (expected for eth_call)
+                        if (j.at("result").is_string()) {
+                            std::string hex_result = j.at("result").get<std::string>();
+                            // Validate hex result format
+                            if (hex_result.length() >= 2 && hex_result.rfind("0x", 0) == 0) {
+                                std::cout << LOG_PREFIX_ADAPTER << "  -> Call successful (JSON response with result)." << std::endl;
+                                return hex_result; // <<< RETURN successful hex result
+                            } else {
+                                std::cerr << LOG_PREFIX_ADAPTER << "  -> Invalid hex format in JSON result field: " << hex_result << ". Trying next endpoint." << std::endl;
+                                continue; // Try next endpoint
+                            }
+                        }
+                        // Handle null result field if necessary, treat as error for now
+                        else if (j.at("result").is_null()) {
+                            std::cerr << LOG_PREFIX_ADAPTER << "  -> Received null in JSON result field. Trying next endpoint." << std::endl;
+                            continue;
+                        }
+                        // Handle other types in result field if needed, treat as error for now
+                        else {
+                            std::cerr << LOG_PREFIX_ADAPTER << "  -> Unexpected data type in JSON result field (expected string): " << j.at("result").type_name() << ". Trying next endpoint." << std::endl;
+                            continue;
+                        }
+                    } // end else if contains result
+                    // If JSON object contains neither "error" nor "result"
+                    else {
+                        std::cerr << LOG_PREFIX_ADAPTER << "  -> Invalid JSON RPC structure (missing error/result): " << response_body << ". Trying next endpoint." << std::endl;
+                        continue; // Try next endpoint
+                    }
+                } // end if is_object
+                // If it's valid JSON but not an object (e.g., array, string directly) - unexpected
+                else {
+                    std::cerr << LOG_PREFIX_ADAPTER << "  -> Unexpected JSON type received (expected object): " << j.type_name() << ". Trying next endpoint." << std::endl;
                     continue; // Try next endpoint
                 }
             } catch (const json::parse_error&) {
-                // Not a JSON object, might be the hex result directly (or garbage)
-                // Proceed to hex validation below
-            }
-            
-            // Validate if it looks like a valid hex result "0x..."
-            if (response_body.length() >= 2 && response_body.rfind("0x", 0) == 0) {
-                // Basic validation passed, return the result body
-                std::cout << LOG_PREFIX_ADAPTER << "  -> Call successful." << std::endl;
-                return response_body;
-            } else {
-                std::cerr << LOG_PREFIX_ADAPTER << "  -> Invalid/unexpected response format: " << response_body << ". Trying next endpoint." << std::endl;
-                continue; // Try next endpoint
-            }
+                // --- If it's NOT valid JSON ---
+                // Maybe it's a raw hex string directly? (Less common for eth_call)
+                // Validate if it looks like a valid hex result "0x..."
+                if (response_body.length() >= 2 && response_body.rfind("0x", 0) == 0) {
+                    std::cout << LOG_PREFIX_ADAPTER << "  -> Call successful (assuming Raw hex response)." << std::endl;
+                    return response_body;
+                } else {
+                    std::cerr << LOG_PREFIX_ADAPTER << "  -> Invalid response format (Not JSON, Not Hex): " << response_body << ". Trying next endpoint." << std::endl;
+                    continue; // Try next endpoint
+                }
+            } // End catch json::parse_error
             
         } catch (const std::exception& e) {
             // Catch exceptions during send_eth_call itself (e.g., URL parsing)
