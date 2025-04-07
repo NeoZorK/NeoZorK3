@@ -13,6 +13,44 @@
 
 namespace neozork::command_handlers {
 
+// Helper function (if needed, or move to utils)
+bool contains_case_insensitive(const std::string& haystack, const std::string& needle);
+
+
+// --- Handlers for Mutable Operations (take config by non-const ref) ---
+
+/**
+ * @brief Handles the '--discover-endpoints' command. Processes one or multiple blockchains.
+ */
+void handle_discover_endpoints(
+                               neozork::config_manager::struct_config& config,
+                               const neozork::cli_parser::command_parameters& params
+                               );
+
+/**
+ * @brief Handles the '--scan-endpoints' command. Processes one or multiple blockchains.
+ */
+void handle_scan_endpoints(
+                           neozork::config_manager::struct_config& config,
+                           const neozork::cli_parser::command_parameters& params
+                           );
+
+/**
+ * @brief Handles the '--scan-single-endpoint' command. Processes a single endpoint on the first matching blockchain.
+ */
+void handle_scan_single_endpoint(
+                                 neozork::config_manager::struct_config& config,
+                                 const neozork::cli_parser::command_parameters& params
+                                 );
+
+/**
+ * @brief Handles the '--measure-block-speed' (or --get-block) command. Processes one or multiple blockchains.
+ */
+void handle_measure_block_speed(
+                                neozork::config_manager::struct_config& config,
+                                const neozork::cli_parser::command_parameters& params
+                                );
+
 /**
  * @brief Handles the '--show-block-speeds' command.
  * Reads the configuration and displays a formatted table showing the
@@ -60,9 +98,9 @@ void handle_show_active_endpoints( // <-- Объявить
  * @throws std::runtime_error if the blockchain is not found or other errors occur.
  */
 void handle_find_dexes( // Takes config by non-const ref
-    neozork::config_manager::struct_config& config,
-    const neozork::cli_parser::command_parameters& params
-);
+                       neozork::config_manager::struct_config& config,
+                       const neozork::cli_parser::command_parameters& params
+                       );
 // 
 
 } // namespace neozork::command_handlers

@@ -2,6 +2,8 @@
 #include "command_handlers.h"
 #include "config_manager.h"
 #include "cli_parser.h"
+#include "endpoint_discovery.h"
+#include "endpoint_scanner.h"
 #include "ui.h"
 #include "blockchain_adapters.h" // Include for discover_dexes_for_blockchain
 #include <iostream>
@@ -445,6 +447,278 @@ void handle_find_dexes(
     
     
 } // end handle_find_dexes
+
+// --- Handler for DISCOVER_ENDPOINTS (MODIFIED for multi-chain name search) ---
+void handle_discover_endpoints(
+                               neozork::config_manager::struct_config& config,
+                               const neozork::cli_parser::command_parameters& params)
+{
+    // 1. Get Blockchain Name or ID & Sources
+    if (!params.blockchain_name) {
+        throw std::runtime_error("Internal Error: blockchain_name is required for handle_discover_endpoints.");
+    }
+    const std::string& blockchain_name_or_id = params.blockchain_name.value();
+    const std::vector<std::string>& sources = params.sources; // sources might be empty (handled by discover_endpoints)
+    
+    neozork::ui::print_label("\n--- Discovering Endpoints for Blockchain(s) matching: ");
+    neozork::ui::print_value(blockchain_name_or_id);
+    std::cout << " ---\n";
+    
+    // 2. Determine if input is ID or Name Search
+    bool is_id_search = false;
+    long long search_id_ll = -1;
+    try {
+        search_id_ll = std::stoll(blockchain_name_or_id);
+        if (search_id_ll > 0) is_id_search = true;
+    } catch(...) { is_id_search = false; }
+    
+    // 3. Find target blockchain(s)
+    std::vector<std::reference_wrapper<neozork::config_manager::struct_blockchain_info>> target_blockchains;
+    bool needs_saving = false; // Flag if discover_endpoints reported changes
+    
+    if (is_id_search) {
+        // Use original find_blockchain for specific ID
+        auto bc_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+        if (bc_ref_opt) {
+            // Call core logic directly for the single blockchain
+            std::cout << "\nProcessing blockchain: " << bc_ref_opt.value().get().name << " (ID: " << bc_ref_opt.value().get().network_id << ")" << std::endl;
+            // Pass config by reference, ID string, and sources
+            // Assuming discover_endpoints now returns bool indicating if saving is needed
+            if(neozork::endpoint_discovery::discover_endpoints(config, blockchain_name_or_id, sources)) {
+                needs_saving = true; // Assume discover_endpoints handles saving internally now based on prev logic
+            }
+        } else {
+            std::cerr << "Error: Blockchain with ID '" << blockchain_name_or_id << "' not found in configuration." << std::endl;
+        }
+    } else {
+        // Find all matching by name substring
+        target_blockchains = neozork::config_manager::find_all_blockchains_by_name(config, blockchain_name_or_id);
+        if (target_blockchains.empty()) {
+            std::cout << "No blockchains found in configuration with a name containing '" << blockchain_name_or_id << "'." << std::endl;
+        } else {
+            std::cout << "Found " << target_blockchains.size() << " matching blockchain(s). Processing..." << std::endl;
+            for (auto& bc_ref_wrapper : target_blockchains) {
+                neozork::config_manager::struct_blockchain_info& current_bc_info = bc_ref_wrapper.get();
+                std::cout << "\n--- Processing: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << ") ---" << std::endl;
+                // Use specific ID for the call within the loop
+                if(neozork::endpoint_discovery::discover_endpoints(config, std::to_string(current_bc_info.network_id), sources)) {
+                    needs_saving = true; // Assume discover_endpoints handles saving internally
+                }
+            }
+        }
+    }
+    
+    std::cout << "\nFinished processing endpoint discovery." << std::endl;
+    // Note: Saving is assumed to be handled within discover_endpoints itself now.
+    // If not, add saving logic here based on 'needs_saving' flag.
+}
+
+
+// --- Handler for SCAN_ENDPOINTS (MODIFIED for multi-chain name search) ---
+void handle_scan_endpoints(
+                           neozork::config_manager::struct_config& config,
+                           const neozork::cli_parser::command_parameters& params)
+{
+    // 1. Get Blockchain Name or ID & optional connection type
+    if (!params.blockchain_name) {
+        throw std::runtime_error("Internal Error: blockchain_name is required for handle_scan_endpoints.");
+    }
+    const std::string& blockchain_name_or_id = params.blockchain_name.value();
+    const std::optional<std::string>& connection_type = params.connection_type;
+    
+    neozork::ui::print_label("\n--- Scanning Endpoints for Blockchain(s) matching: ");
+    neozork::ui::print_value(blockchain_name_or_id);
+    if(connection_type) { neozork::ui::print_label(" (Type: " + *connection_type + ")"); }
+    std::cout << " ---\n";
+    
+    // 2. Determine if ID or Name Search
+    bool is_id_search = false;
+    try { if (std::stoll(blockchain_name_or_id) > 0) is_id_search = true; } catch(...) { is_id_search = false; }
+    
+    // 3. Find target blockchain(s)
+    std::vector<std::reference_wrapper<neozork::config_manager::struct_blockchain_info>> target_blockchains;
+    if (is_id_search) {
+        auto bc_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+        if (bc_ref_opt) target_blockchains.push_back(bc_ref_opt.value());
+    } else {
+        target_blockchains = neozork::config_manager::find_all_blockchains_by_name(config, blockchain_name_or_id);
+    }
+    
+    // 4. Check if found
+    if (target_blockchains.empty()) {
+        // Report error/not found message
+        std::cerr << "Error/Info: No blockchain(s) found matching '" << blockchain_name_or_id << "'." << std::endl;
+        return;
+    }
+    
+    // 5. Execute scan for each found blockchain (LOOP)
+    bool any_changes_made = false;
+    std::cout << "Found " << target_blockchains.size() << " matching blockchain(s). Processing..." << std::endl;
+    for (auto& bc_ref_wrapper : target_blockchains) {
+        neozork::config_manager::struct_blockchain_info& current_bc_info = bc_ref_wrapper.get();
+        std::cout << "\n--- Processing Scan: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << ") ---" << std::endl;
+        try {
+            // Call core scanner function - assuming it modifies config directly
+            neozork::endpoint_scanner::run_scan_endpoints(config, std::to_string(current_bc_info.network_id), connection_type);
+            any_changes_made = true; // Scanning always updates timestamps/status
+        } catch (const std::exception& e) {
+            std::cerr << "Error during endpoint scan for " << current_bc_info.name << ": " << e.what() << std::endl;
+        }
+    }
+    
+    // 6. Save Config if changes were made
+    std::cout << "\nFinished processing endpoint scan(s)." << std::endl;
+    if (any_changes_made) {
+        std::cout << "Saving configuration..." << std::endl;
+        try {
+            neozork::config_manager::save_config(config);
+            std::cout << "Configuration saved successfully." << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR saving configuration after scanning: " << e.what() << std::endl;
+        }
+    } else {
+        std::cout << "No changes requiring configuration save detected." << std::endl;
+    }
+}
+
+
+// --- Handler for SCAN_SINGLE_ENDPOINT (Operates on FIRST matching blockchain) ---
+void handle_scan_single_endpoint(
+                                 neozork::config_manager::struct_config& config,
+                                 const neozork::cli_parser::command_parameters& params)
+{
+    // 1. Get required parameters
+    if (!params.blockchain_name) throw std::runtime_error("Internal error: blockchain name missing for single scan.");
+    if (!params.endpoint_url) throw std::runtime_error("Internal error: endpoint URL missing for single scan.");
+    const std::string& blockchain_name_or_id = params.blockchain_name.value();
+    const std::string& endpoint_url = params.endpoint_url.value();
+    const std::optional<std::string>& connection_type = params.connection_type;
+    
+    neozork::ui::print_label("\n--- Scanning Single Endpoint '" + endpoint_url + "' on Blockchain matching: ");
+    neozork::ui::print_value(blockchain_name_or_id);
+    if(connection_type) { neozork::ui::print_label(" (Type: " + *connection_type + ")"); }
+    std::cout << " ---\n";
+    
+    // 2. Determine if ID or Name Search
+    bool is_id_search = false;
+    try { if (std::stoll(blockchain_name_or_id) > 0) is_id_search = true; } catch(...) { is_id_search = false; }
+    
+    // 3. Find the FIRST matching target blockchain
+    std::optional<std::reference_wrapper<neozork::config_manager::struct_blockchain_info>> target_blockchain_opt;
+    if (is_id_search) {
+        target_blockchain_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+    } else {
+        auto all_matches = neozork::config_manager::find_all_blockchains_by_name(config, blockchain_name_or_id);
+        if (!all_matches.empty()) {
+            target_blockchain_opt = all_matches.front(); // Take the first match
+            if (all_matches.size() > 1) {
+                std::cout << "Warning: Multiple blockchains match name '" << blockchain_name_or_id
+                << "'. Scanning endpoint only on the first match found: '"
+                << target_blockchain_opt.value().get().name << "'." << std::endl;
+            }
+        }
+    }
+    
+    // 4. Check if blockchain was found
+    if (!target_blockchain_opt) {
+        std::cerr << "Error: No blockchain found matching '" << blockchain_name_or_id << "'." << std::endl;
+        return;
+    }
+    
+    // 5. Execute scan for the single blockchain found
+    neozork::config_manager::struct_blockchain_info& current_bc_info = target_blockchain_opt.value().get();
+    std::cout << "Processing blockchain: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << ")" << std::endl;
+    bool changes_made = false;
+    try {
+        // Use specific ID for the call
+        neozork::endpoint_scanner::run_scan_single_endpoint(config, std::to_string(current_bc_info.network_id), endpoint_url, connection_type);
+        changes_made = true; // Scanning always updates
+    } catch (const std::exception& e) {
+        std::cerr << "Error during single endpoint scan for " << current_bc_info.name << ": " << e.what() << std::endl;
+    }
+    
+    // 6. Save Config if changes were made
+    std::cout << "\nFinished processing single endpoint scan." << std::endl;
+    if (changes_made) {
+        std::cout << "Saving configuration..." << std::endl;
+        try {
+            neozork::config_manager::save_config(config);
+            std::cout << "Configuration saved successfully." << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR saving configuration after single scan: " << e.what() << std::endl;
+        }
+    }
+}
+
+
+// --- Handler for MEASURE_BLOCK_SPEED (MODIFIED for multi-chain name search) ---
+void handle_measure_block_speed(
+                                neozork::config_manager::struct_config& config,
+                                const neozork::cli_parser::command_parameters& params)
+{
+    // 1. Get Blockchain Name or ID
+    if (!params.blockchain_name) {
+        throw std::runtime_error("Internal Error: blockchain_name is required for handle_measure_block_speed.");
+    }
+    const std::string& blockchain_name_or_id = params.blockchain_name.value();
+    
+    neozork::ui::print_label("\n--- Measuring Block Speed for Blockchain(s) matching: ");
+    neozork::ui::print_value(blockchain_name_or_id);
+    std::cout << " ---\n";
+    
+    // 2. Determine if ID or Name Search
+    bool is_id_search = false;
+    try { if (std::stoll(blockchain_name_or_id) > 0) is_id_search = true; } catch(...) { is_id_search = false; }
+    
+    // 3. Find target blockchain(s)
+    std::vector<std::reference_wrapper<neozork::config_manager::struct_blockchain_info>> target_blockchains;
+    if (is_id_search) {
+        auto bc_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_name_or_id);
+        if (bc_ref_opt) target_blockchains.push_back(bc_ref_opt.value());
+    } else {
+        target_blockchains = neozork::config_manager::find_all_blockchains_by_name(config, blockchain_name_or_id);
+    }
+    
+    // 4. Check if found
+    if (target_blockchains.empty()) {
+        std::cerr << "Error/Info: No blockchain(s) found matching '" << blockchain_name_or_id << "'." << std::endl;
+        return;
+    }
+    
+    // 5. Execute measurement for each found blockchain (LOOP)
+    bool any_changes_made = false;
+    std::cout << "Found " << target_blockchains.size() << " matching blockchain(s). Processing..." << std::endl;
+    for (auto& bc_ref_wrapper : target_blockchains) {
+        neozork::config_manager::struct_blockchain_info& current_bc_info = bc_ref_wrapper.get();
+        std::cout << "\n--- Processing Measurement: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << ") ---" << std::endl;
+        try {
+            // Call core function using specific ID
+            std::optional<double> result = neozork::blockchain_adapters::measure_block_speed(config, std::to_string(current_bc_info.network_id));
+            if (result.has_value()) {
+                any_changes_made = true; // Measurement succeeded and updated config
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error during block speed measurement for " << current_bc_info.name << ": " << e.what() << std::endl;
+        }
+    }
+    
+    // 6. Save Config if changes were made
+    std::cout << "\nFinished processing block speed measurement(s)." << std::endl;
+    if (any_changes_made) {
+        std::cout << "Saving configuration..." << std::endl;
+        try {
+            neozork::config_manager::save_config(config);
+            std::cout << "Configuration saved successfully." << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR saving configuration after measurement: " << e.what() << std::endl;
+        }
+    } else {
+        std::cout << "No successful measurements completed, configuration not saved." << std::endl;
+    }
+}
+
+
+
 
 // --- Implementations for future command handlers ---
 
