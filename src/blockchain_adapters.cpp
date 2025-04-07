@@ -669,10 +669,13 @@ bool discover_pools_for_dex(
             std::cerr << "\n" << LOG_PREFIX_ADAPTER << "ERROR processing pool index " << i << ": " << e.what() << ". Skipping." << std::endl;
         }
         
+        std::cout << "\n" << LOG_PREFIX_ADAPTER << "Debug: Checking delay for index " << i << ". delay_ms = " << delay_ms << std::endl;
+        
+        
         // Apply delay IF specified by the user (> 0)
-            if (delay_ms > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
-            }
+        if (delay_ms > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        }
         
         // --- 7f. Update Progress Bar ---
         neozork::ui::update_progress(i + 1);
