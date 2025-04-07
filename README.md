@@ -13,6 +13,7 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
     * *(Future Scope)* Cross-Chain, CEX <-> DEX Arbitrage.
 * **Dynamic Endpoint Management:**
     * **Discovery (`--discover-endpoints`):** Finds RPC endpoint URLs from sources like DefiLlama data, Chainlist.org, known aggregators, specified GitHub lists, official project documentation (manual lookup often required), etc. (`--source`). Downloads/parses data (with progress bar) for a chosen blockchain (`--blockchain`) and adds basic endpoint info (URL, possible types) to `NeoZorK-config`. Does not test connectivity. Providers like Alchemy, Infura, QuickNode, Ankr might also be sources but often require manual API key addition.
+        * **Supported Keywords for `--source`:** `chain` (default, uses chainid.network), `defi` (uses DefiLlama), `eth` (uses ethereum-lists, Ethereum mainnet only). Can also provide direct HTTP/HTTPS URLs. * *... (rest of the features)* ...*
     * **Scanning (`--scan-endpoints`, `--scan-single-endpoint`):** Tests endpoints *already present* in `NeoZorK-config`. Requires selecting a blockchain (`--blockchain`). Scans either *all* its configured endpoints or a *single* specified endpoint URL. It attempts to connect using *all* connection types (http, https, ws, wss, ipc) listed for that endpoint in the config. Updates the endpoint's status fields in the config *per connection type*: `isActive` (true/false), `latency` (ms), and optionally `trafficIn`/`trafficOut` (bytes, estimated), `rpcResponseSizeBytes` (estimated).
     * **Block Speed Measurement (`--measure-block-speed`):** Connects to an active endpoint for a specified blockchain, measures the average time for new blocks, and stores it in `NeoZorK-config`.
     * **Connection Flexibility:** Supports multiple connection protocols: Local IPC, HTTP, HTTPS, WS, WSS. The default type for actions (like arbitrage) can be hinted with `--connection-type`.
@@ -122,7 +123,7 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
 
 ## 7. Getting Started / Usage (Preliminary Flags)
 
-*(Config file `NeoZorK-config` is auto-created/used next to the binary)*
+* *(Config file `NeoZorK-config` is auto-created/used next to the binary)*
 
 **General Options:**
 * `--help`: Display detailed usage information.
@@ -136,7 +137,7 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
 * `--config-restore`: Restore `NeoZorK-config` from backup.
 
 **Endpoint & Chain Info Management:**
-* `--discover-endpoints --blockchain <name> --source <defillama|chainlist|aggregator_name|github_list_url>[,...]`: Discover RPC URLs from sources and add basic info to `NeoZorK-config`.
+* `--discover-endpoints --blockchain <name> --source <defi|chain|eth|github_list_url>[,...]`: Discover RPC URLs from sources and add basic info to `NeoZorK-config`. * *... (other flags)* ...*
 * `--scan-endpoints --blockchain <name>`: Tests *all configured connection types* for endpoints listed in config for the specified blockchain, updates status/latency fields per type.
 * `--scan-single-endpoint --blockchain <name> --endpoint <url>`: Scan a specific endpoint URL, testing all its configured types.
 * `--show-active-endpoints --blockchain <name>`: Lists detailed information for endpoints marked 'Active' (for any connection type) in the config for the specified blockchain.
