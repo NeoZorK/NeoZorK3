@@ -44,86 +44,91 @@ bool contains_case_insensitive(const std::string& haystack, const std::string& n
      */
 }
 
-// --- Handler for SHOW_ENDPOINT_INFO (Combines Endpoint search + context AND direct DEX search) ---
+// --- Handler for SHOW_ENDPOINT_INFO (Handles blockchain search term OR general search) ---
 void handle_show_endpoint_info(
                                const neozork::config_manager::struct_config& config,
                                const neozork::cli_parser::command_parameters& params)
 {
-    // Get the search term
+    // Get the search term (parser should ensure it exists)
     if (!params.search_term) {
         throw std::runtime_error("Internal Error: Search term is missing for handle_show_endpoint_info.");
     }
     const std::string& search_term = params.search_term.value();
     
-    // Update header message
-    neozork::ui::print_label("Searching for Endpoints (URL) and DEXes (Name/ID) containing: '");
-    neozork::ui::print_value(search_term);
-    neozork::ui::print_label("'\n");
-    std::cout << "========================================" << std::endl;
+    // --- NEW: Check if search term matches a specific blockchain first ---
+    auto bc_match_opt = neozork::config_manager::find_blockchain(config, search_term);
     
-    
-    int found_endpoints_count = 0; // Counter for endpoints
-    int found_dex_count = 0;       // Counter for DEXes (restored)
-    
-    
-    // Iterate through all blockchains in the config
-    for (const auto& bc_info : config.blockchains) {
+    if (bc_match_opt) {
+        // --- Mode 1: Search term IS a blockchain identifier ---
+        const auto& bc_info = bc_match_opt.value().get();
+        neozork::ui::print_label("\n--- Showing Configured DEXes for Blockchain: ");
+        neozork::ui::print_value(bc_info.name);
+        std::cout << " (ID: " << bc_info.network_id << ") ---\n";
         
-        // --- Search Endpoints (and display with DEX context) ---
-        for (const auto& endpoint : bc_info.endpoints) {
-            bool match_found_in_endpoint = false;
-            // Check if the search term is a substring of any URL
-            for (const auto& url_pair : endpoint.connection_urls) {
-                if (url_pair.second.find(search_term) != std::string::npos) {
-                    match_found_in_endpoint = true;
-                    break;
-                }
-            }
-            
-            // If an endpoint URL match was found, print its details
-            // The function print_endpoint_details also prints associated DEXes
-            if (match_found_in_endpoint) {
-                found_endpoints_count++;
-                // Call function that prints endpoint details AND the DEX list for context
-                neozork::ui::print_endpoint_details(bc_info, endpoint);
-            }
-        } // end loop over endpoints
-        
-        
-        // +++ START RESTORED DEX Search +++
-        // --- Search DEXes directly ---
-        for (const auto& dex : bc_info.dexes) {
-            // Check if search term matches DEX ID (case-sensitive) or Name (case-insensitive)
-            bool id_match = (dex.id.find(search_term) != std::string::npos);
-            bool name_match = contains_case_insensitive(dex.name, search_term);
-            
-            if (id_match || name_match) {
-                // --- Check if this DEX was already shown as context for an endpoint above ---
-                // (Optional optimization: could track printed blockchain/DEX combos to avoid
-                // calling print_dex_details if print_endpoint_details already showed it.
-                // For simplicity now, we allow potential duplicate display of DEX info
-                // if search term matches both endpoint URL and DEX name/ID on same chain).
-                
-                found_dex_count++;
-                // Call the function that prints *only* the matching DEX details
+        if (bc_info.dexes.empty()) {
+            neozork::ui::print_value("No DEXes found in configuration for this blockchain.\n");
+        } else {
+            std::cout << "Found " << bc_info.dexes.size() << " DEX(es):\n";
+            std::cout << "----------------------------------------" << std::endl;
+            for(const auto& dex : bc_info.dexes) {
+                // Use print_dex_details to show full info for each DEX
                 neozork::ui::print_dex_details(bc_info, dex);
+                // Or just print name/id for brevity:
+                // neozork::ui::print_label(" - Name: "); neozork::ui::print_value(dex.name);
+                // std::cout << ", ID: "; neozork::ui::print_value(dex.id); std::cout << std::endl;
             }
-        } // end loop over dexes
-        // +++ END RESTORED DEX Search +++
+        }
+        // --- END Mode 1 ---
         
+    } else {
+        // --- Mode 2: Search term is NOT a blockchain identifier - Perform general search ---
+        neozork::ui::print_label("\nSearching for Endpoints (URL) and DEXes (Name/ID) containing: '");
+        neozork::ui::print_value(search_term);
+        neozork::ui::print_label("'\n");
+        std::cout << "========================================" << std::endl;
         
-    } // end loop over blockchains
+        int found_endpoints_count = 0;
+        int found_dex_count = 0;
+        
+        // Iterate through all blockchains in the config
+        for (const auto& bc_info : config.blockchains) {
+            // Search Endpoints (displaying context)
+            for (const auto& endpoint : bc_info.endpoints) {
+                bool match_found_in_endpoint = false;
+                for (const auto& url_pair : endpoint.connection_urls) {
+                    if (url_pair.second.find(search_term) != std::string::npos) {
+                        match_found_in_endpoint = true;
+                        break;
+                    }
+                }
+                if (match_found_in_endpoint) {
+                    found_endpoints_count++;
+                    neozork::ui::print_endpoint_details(bc_info, endpoint);
+                }
+            } // end endpoint loop
+            
+            // Search DEXes directly
+            for (const auto& dex : bc_info.dexes) {
+                bool id_match = (dex.id.find(search_term) != std::string::npos);
+                bool name_match = contains_case_insensitive(dex.name, search_term);
+                if (id_match || name_match) {
+                    found_dex_count++;
+                    neozork::ui::print_dex_details(bc_info, dex);
+                }
+            } // end dex loop
+        } // end blockchain loop
+        
+        std::cout << "========================================" << std::endl;
+        neozork::ui::print_label("Total endpoints found matching criteria: ");
+        neozork::ui::print_value(found_endpoints_count);
+        std::cout << std::endl;
+        neozork::ui::print_label("Total DEXes found matching criteria:     ");
+        neozork::ui::print_value(found_dex_count);
+        std::cout << std::endl;
+        // --- END Mode 2 ---
+    } // End if/else (blockchain found by search_term)
     
-    
-    std::cout << "========================================" << std::endl;
-    // Print summary counts (restored both)
-    neozork::ui::print_label("Total endpoints found matching the criteria: ");
-    neozork::ui::print_value(found_endpoints_count);
-    std::cout << std::endl;
-    neozork::ui::print_label("Total DEXes found matching the criteria:     ");
-    neozork::ui::print_value(found_dex_count);
-    std::cout << std::endl;
-}
+} // end handle_show_endpoint_info
 
 // --- Handler for SHOW_BLOCK_SPEEDS ---
 void handle_show_block_speeds(
@@ -711,34 +716,37 @@ void handle_measure_block_speed(
     }
 }
 
-// --- Handler for FIND_POOLS (Skeleton) ---
+// --- Handler for FIND_POOLS (Handles optional --dex) ---
 void handle_find_pools(
                        neozork::config_manager::struct_config& config,
                        const neozork::cli_parser::command_parameters& params)
 {
-    // 1. Get Blockchain Name/ID and DEX ID (Parser guarantees they exist)
+    // 1. Get Blockchain Name/ID (Parser guarantees it exists)
     if (!params.blockchain_name) throw std::runtime_error("Internal Error: blockchain_name missing for handle_find_pools.");
-    if (!params.dex_id) throw std::runtime_error("Internal Error: dex_id missing for handle_find_pools.");
-    
     const std::string& blockchain_name_or_id = params.blockchain_name.value();
-    const std::string& dex_id_to_find = params.dex_id.value();
     
-    neozork::ui::print_label("\n--- Discovering Pools for DEX '");
-    neozork::ui::print_value(dex_id_to_find);
-    neozork::ui::print_label("' on Blockchain(s) matching: ");
+    // Get optional DEX ID and delay
+    const std::optional<std::string>& dex_id_opt = params.dex_id;
+    int delay_ms = params.delay_between_requests_ms.value_or(0);
+    
+    // Print header
+    neozork::ui::print_label("\n--- Discovering Pools");
+    if (dex_id_opt) {
+        neozork::ui::print_label(" for DEX '");
+        neozork::ui::print_value(*dex_id_opt);
+        neozork::ui::print_label("'");
+    } else {
+        neozork::ui::print_label(" for ALL configured DEXes");
+    }
+    neozork::ui::print_label(" on Blockchain(s) matching: ");
     neozork::ui::print_value(blockchain_name_or_id);
+    if (delay_ms > 0) { std::cout << " (Delay: " << delay_ms << " ms)"; }
     std::cout << " ---\n";
     
-    // Get delay from params, default to 0 (no delay) if not provided
-    int delay_ms = params.delay_between_requests_ms.value_or(0);
-    if (delay_ms > 0) {
-         std::cout << "Using delay between requests: " << delay_ms << " ms." << std::endl;
-    }
     
     // 2. Determine if input is ID or Name Search for blockchain
     bool is_id_search = false;
     try { if (std::stoll(blockchain_name_or_id) > 0) is_id_search = true; } catch(...) { is_id_search = false; }
-    
     
     // 3. Find target blockchain(s)
     std::vector<std::reference_wrapper<neozork::config_manager::struct_blockchain_info>> target_blockchains;
@@ -749,52 +757,69 @@ void handle_find_pools(
         target_blockchains = neozork::config_manager::find_all_blockchains_by_name(config, blockchain_name_or_id);
     }
     
-    
     // 4. Check if found
     if (target_blockchains.empty()) {
         std::cerr << "Error/Info: No blockchain(s) found matching '" << blockchain_name_or_id << "'." << std::endl;
         return;
     }
     
-    
-    // 5. Execute pool discovery for each found blockchain (LOOP)
+    // 5. Execute pool discovery
     bool any_changes_made = false;
     std::cout << "Found " << target_blockchains.size() << " matching blockchain(s). Processing..." << std::endl;
     
-    
+    // Outer loop: Iterate through found blockchains
     for (auto& bc_ref_wrapper : target_blockchains) {
         neozork::config_manager::struct_blockchain_info& current_bc_info = bc_ref_wrapper.get();
-        std::cout << "\n--- Processing Pools for: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << "), DEX: " << dex_id_to_find << " ---" << std::endl;
+        std::string current_id_str = std::to_string(current_bc_info.network_id);
+        std::cout << "\n--- Processing Blockchain: " << current_bc_info.name << " (ID: " << current_id_str << ") ---" << std::endl;
         
-        
-        // Check if the specified DEX exists for this blockchain first
-        auto dex_ref_opt = neozork::config_manager::find_dex(current_bc_info, dex_id_to_find);
-        if (!dex_ref_opt) {
-            std::cerr << "Error: DEX with ID '" << dex_id_to_find << "' not found in configuration for blockchain '" << current_bc_info.name << "'. Skipping." << std::endl;
-            continue; // Skip to the next blockchain
-        }
-        
-        
-        // Call the core logic function from blockchain_adapters
-        try {
-            // Pass config reference, current blockchain ID as string, and dex ID string
-            std::string current_id_str = std::to_string(current_bc_info.network_id);
-            bool result = neozork::blockchain_adapters::discover_pools_for_dex(config, current_id_str, dex_id_to_find, delay_ms);
-            
-            if (result) {
-                any_changes_made = true; // Mark potential change if function indicates success/modification
+        // Determine which DEXes to process for this blockchain
+        std::vector<std::reference_wrapper<const neozork::config_manager::struct_dex_info>> dexes_to_process;
+        if (dex_id_opt) {
+            // If --dex was specified, find that specific DEX
+            auto dex_ref_opt = neozork::config_manager::find_dex(current_bc_info, *dex_id_opt);
+            if (!dex_ref_opt) {
+                std::cerr << "Error: DEX with ID '" << *dex_id_opt << "' not found for blockchain '" << current_bc_info.name << "'. Skipping." << std::endl;
+                continue; // Skip this blockchain for this specific DEX
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Error during pool discovery for " << current_bc_info.name << ", DEX " << dex_id_to_find << ": " << e.what() << std::endl;
-            // Continue to the next blockchain
+            dexes_to_process.push_back(dex_ref_opt.value()); // Process only this DEX
+        } else {
+            // If --dex was NOT specified, process ALL DEXes configured for this blockchain
+            if (current_bc_info.dexes.empty()) {
+                std::cout << "No DEXes configured for blockchain '" << current_bc_info.name << "'. Skipping pool discovery." << std::endl;
+                continue; // Skip this blockchain
+            }
+            std::cout << "Processing all " << current_bc_info.dexes.size() << " configured DEXes..." << std::endl;
+            // Add references to all configured DEXes
+            for(const auto& dex : current_bc_info.dexes) {
+                dexes_to_process.push_back(std::cref(dex));
+            }
         }
-    } // --- End loop over target_blockchains ---
-    
+        
+        // Inner loop: Iterate through selected DEXes for the current blockchain
+        for(const auto& dex_ref_wrapper : dexes_to_process) {
+            const neozork::config_manager::struct_dex_info& current_dex_info = dex_ref_wrapper.get();
+            std::cout << "\n-- Processing DEX: " << current_dex_info.name << " (ID: " << current_dex_info.id << ") --" << std::endl;
+            
+            // Call the core logic function from blockchain_adapters
+            try {
+                bool result = neozork::blockchain_adapters::discover_pools_for_dex(config, current_id_str, current_dex_info.id, delay_ms);
+                if (result) {
+                    any_changes_made = true; // Mark potential change if function indicates success/modification
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error during pool discovery for " << current_bc_info.name << ", DEX " << current_dex_info.id << ": " << e.what() << std::endl;
+                // Continue to the next DEX or blockchain
+            }
+            
+        } // --- End inner loop over dexes_to_process ---
+        
+    } // --- End outer loop over target_blockchains ---
     
     std::cout << "\nFinished processing pool discovery." << std::endl;
     
-    
     // 6. Save Config if any changes might have occurred
+    if (any_changes_made) { /* ... saving logic ... */ } else { /* ... no changes log ... */ }
     if (any_changes_made) {
         std::cout << "Saving configuration..." << std::endl;
         try {
@@ -806,9 +831,7 @@ void handle_find_pools(
     } else {
         std::cout << "No changes detected or requiring configuration save." << std::endl;
     }
-    
 } // end handle_find_pools
-
 
 
 // --- Implementations for future command handlers ---

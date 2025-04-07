@@ -342,9 +342,6 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         if (!params.blockchain_name.has_value()) {
             throw std::runtime_error("--blockchain <name|id> is required for --find-pools");
         }
-        if (!params.dex_id.has_value()) {
-            throw std::runtime_error("--dex <dex_id> is required for --find-pools");
-        }
         // Check for irrelevant flags (Example)
          if (!params.sources.empty()) { std::cerr << "Warning: --source argument ignored for --find-pools command.\n"; }
     }
