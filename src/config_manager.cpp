@@ -361,22 +361,39 @@ std::optional<std::reference_wrapper<struct_blockchain_info>> find_blockchain(
     auto it = std::find_if(config_ref.blockchains.begin(), config_ref.blockchains.end(),
                            [&](const struct_blockchain_info& bc) {
         
+        // --- Check 1: Exact ID Match ---
+        // Try to convert search string to ID first
+        try {
+            long long search_id = std::stoll(name_or_id_str);
+            // If conversion successful, check for exact ID match
+            if (bc.network_id == search_id) {
+                return true; // Found by exact ID match
+            }
+            // If it was a number but didn't match ID, don't try name match
+            // return false; // Optional: uncomment if you ONLY want ID match when input is numeric
+        } catch(...) {
+            // Input was not a valid number, proceed to check name
+        }
+        
+        
+        // --- Check 2: Substring Name Match (Case-Insensitive) ---
+        // Convert both names to lower case for case-insensitive comparison
         std::string lower_name = bc.name;
         std::string lower_search = name_or_id_str;
-        
         std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         
-        if (lower_name == lower_search) return true;
+        // Check if bc.name (lowercase) CONTAINS name_or_id_str (lowercase)
+        if (lower_name.find(lower_search) != std::string::npos) {
+            return true; // Found by substring name match
+        }
         
-        // Check for ID
-        try {
-            long long id = std::stoll(name_or_id_str);
-            if (bc.network_id == id) return true;
-        } catch(...) { /* Ignore Exception stoi/stoll */ }
+        
+        // No match found by ID or Name substring
         return false;
+        
     });
     
     if (it != config_ref.blockchains.end()) {
@@ -391,18 +408,39 @@ std::optional<std::reference_wrapper<const struct_blockchain_info>> find_blockch
 {
     auto it = std::find_if(config_ref.blockchains.begin(), config_ref.blockchains.end(),
                            [&](const struct_blockchain_info& bc) {
+        // --- Check 1: Exact ID Match ---
+        // Try to convert search string to ID first
+        try {
+            long long search_id = std::stoll(name_or_id_str);
+            // If conversion successful, check for exact ID match
+            if (bc.network_id == search_id) {
+                return true; // Found by exact ID match
+            }
+            // If it was a number but didn't match ID, don't try name match
+            // return false; // Optional: uncomment if you ONLY want ID match when input is numeric
+        } catch(...) {
+            // Input was not a valid number, proceed to check name
+        }
+        
+        
+        // --- Check 2: Substring Name Match (Case-Insensitive) ---
+        // Convert both names to lower case for case-insensitive comparison
         std::string lower_name = bc.name;
         std::string lower_search = name_or_id_str;
         std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
                        [](unsigned char c){ return std::tolower(c); });
-        if (lower_name == lower_search) return true;
-        try {
-            long long id = std::stoll(name_or_id_str);
-            if (bc.network_id == id) return true;
-        } catch(...) {}
+        
+        // Check if bc.name (lowercase) CONTAINS name_or_id_str (lowercase)
+        if (lower_name.find(lower_search) != std::string::npos) {
+            return true; // Found by substring name match
+        }
+        
+        
+        // No match found by ID or Name substring
         return false;
+        
     });
     
     if (it != config_ref.blockchains.end()) {
