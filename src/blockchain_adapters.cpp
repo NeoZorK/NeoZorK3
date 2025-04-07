@@ -67,6 +67,7 @@ std::optional<std::string> try_eth_call_with_failover(
         if (url_it == endpoint.connection_urls.end()) continue; // Should not happen if get_active_endpoints worked
         const std::string& current_endpoint_url = url_it->second;
         
+        std::cerr << std::endl;
         std::cout << LOG_PREFIX_ADAPTER << "  Attempting eth_call via: " << current_endpoint_url << "..." << std::endl;
         
         try {
