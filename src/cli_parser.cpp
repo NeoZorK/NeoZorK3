@@ -47,7 +47,7 @@ void print_help() {
     << "                               Required by most commands involving a specific chain.\n"
     << blue << "  -s, --source <keyword|url>"<<reset<<"   Specify discovery source for"<<yellow<<"--discover-endpoints"<<reset<<".\n"
     << "                               Can be used multiple times.\n"
-    << "                               Keywords:"<<yellow<<"'defi', 'chain', 'eth'"<<reset<<".\n"
+    << "                               Keywords: "<<yellow<<"'chain'"<<reset<<" (chainid.network), "<<yellow<<"'defi'"<<reset<<" (DefiLlama), "<<yellow<<"'eth'"<<reset<<" (ethereum-lists).\n"
     << "                               Or provide a direct http(s) URL to a JSON or text list.\n"
     << "                               Defaults to 'chain' if omitted.\n"
     << blue << "      --endpoint <url>"<<reset<<"         Specify a single endpoint URL (required by\n"
