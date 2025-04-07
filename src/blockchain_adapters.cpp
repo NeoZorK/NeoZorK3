@@ -369,7 +369,6 @@ bool discover_dexes_for_blockchain(
     return true; // Indicate successful completion
 }
 
-// +++ START ADDED STUB IMPLEMENTATION +++
 /**
  * @brief Discovers liquidity pools for a specific DEX on a given blockchain.
  * Interacts with the DEX Factory contract via RPC.
@@ -379,37 +378,210 @@ bool discover_dexes_for_blockchain(
  * @return True if the configuration was potentially modified (new pools added), false otherwise or on critical error.
  * @throws std::runtime_error on configuration errors (blockchain/DEX not found) or RPC errors.
  */
+// --- Implementation for discover_pools_for_dex ---
 bool discover_pools_for_dex(
     neozork::config_manager::struct_config& config,
-    const std::string& blockchain_id_str, // Pass ID string for unambiguous lookup
+    const std::string& blockchain_id_str,
     const std::string& dex_id)
 {
-    // Mark config as intentionally unused in this stub implementation
-        (void)config;
-    
-    // Log entry point
-    neozork::ui::print_label(LOG_PREFIX_ADAPTER); // Use existing prefix if defined, or std::cout
-    std::cout << "Pool discovery for blockchain ID '" << blockchain_id_str
-              << "', DEX '" << dex_id << "' - NOT IMPLEMENTED YET." << std::endl;
+    bool changes_made = false; // Track if we added any pools
+
+    std::cout << LOG_PREFIX_ADAPTER << "Starting pool discovery for blockchain ID '" << blockchain_id_str
+              << "', DEX '" << dex_id << "'..." << std::endl;
 
 
-    // TODO: Implement the actual logic here:
-    // 1. Find blockchain by ID string in config.
-    // 2. Find DEX by dex_id within the blockchain struct. Get factory_address.
-    // 3. Find an active HTTPS endpoint for the blockchain.
-    // 4. Call factory.allPairsLength() via eth_call (using ABI helpers).
-    // 5. Loop from i = 0 to length-1:
-    // 6.   Call factory.allPairs(i) via eth_call -> get pool_address.
-    // 7.   Call pool.token0() via eth_call -> get token0_address.
-    // 8.   Call pool.token1() via eth_call -> get token1_address.
-    // 9.   Create struct_pool_info.
-    // 10.  Add pool to config using config_manager::add_pool.
-    // 11.  Update progress bar.
+    // --- 1. Find Blockchain ---
+    auto bc_info_ref_opt = neozork::config_manager::find_blockchain(config, blockchain_id_str);
+    if (!bc_info_ref_opt) {
+        std::cerr << LOG_PREFIX_ADAPTER << "ERROR: Blockchain with ID '" << blockchain_id_str << "' not found in config." << std::endl;
+        return false; // Cannot proceed
+    }
+    neozork::config_manager::struct_blockchain_info& bc_info = bc_info_ref_opt.value().get();
+    std::cout << LOG_PREFIX_ADAPTER << "Found blockchain: " << bc_info.name << std::endl;
 
 
-    // Return false for now, indicating no changes were made
-    return false;
+    // --- 2. Find DEX and Factory Address ---
+    auto dex_info_ref_opt = neozork::config_manager::find_dex(bc_info, dex_id);
+    if (!dex_info_ref_opt) {
+         std::cerr << LOG_PREFIX_ADAPTER << "ERROR: DEX with ID '" << dex_id << "' not found in config for blockchain '" << bc_info.name << "'." << std::endl;
+         return false; // Cannot proceed
+    }
+    const neozork::config_manager::struct_dex_info& dex_info = dex_info_ref_opt.value().get();
+    if (!dex_info.factory_address.has_value() || dex_info.factory_address.value().empty()) {
+         std::cerr << LOG_PREFIX_ADAPTER << "ERROR: Factory address is missing for DEX '" << dex_id << "' in config." << std::endl;
+         return false; // Cannot proceed without factory
+    }
+    const std::string factory_address = dex_info.factory_address.value();
+    std::cout << LOG_PREFIX_ADAPTER << "Found DEX: " << dex_info.name << " (Factory: " << factory_address << ")" << std::endl;
+
+
+    // --- 3. Find Active HTTPS Endpoint ---
+    // Assuming send_eth_call uses HTTPS. Prioritize faster endpoints if available? For now, first active HTTPS.
+    std::string endpoint_url;
+    auto active_endpoints = neozork::config_manager::get_active_endpoints(bc_info, "https"); // Prefer HTTPS
+    if (!active_endpoints.empty()) {
+         // Get the URL from the first endpoint reference wrapper
+         const auto& first_ep = active_endpoints[0].get();
+         // Find the HTTPS url within this endpoint's map
+         auto url_it = first_ep.connection_urls.find("https");
+         if (url_it != first_ep.connection_urls.end()) {
+              endpoint_url = url_it->second;
+         }
+    }
+    if (endpoint_url.empty()) {
+        std::cerr << LOG_PREFIX_ADAPTER << "ERROR: No active HTTPS endpoint found for blockchain '" << bc_info.name << "' to query contracts." << std::endl;
+        return false; // Cannot proceed
+    }
+     std::cout << LOG_PREFIX_ADAPTER << "Using endpoint: " << endpoint_url << std::endl;
+
+
+    // --- 4. Define ABI Signatures (Uniswap V2 standard) ---
+    const std::string ALL_PAIRS_LENGTH_SIG = "0x18160ddd"; // allPairsLength()
+    const std::string ALL_PAIRS_SIG = "0x1e3dd18b";        // allPairs(uint256)
+    const std::string TOKEN0_SIG = "0x0dfe1681";           // token0()
+    const std::string TOKEN1_SIG = "0xd21220a7";           // token1()
+
+
+    // --- 5. Get Pool Count from Factory ---
+    long long pool_count = 0;
+    try {
+        std::cout << LOG_PREFIX_ADAPTER << "Querying pool count from factory..." << std::endl;
+        std::string length_data = neozork::connection_manager::encode_eth_call_data(ALL_PAIRS_LENGTH_SIG);
+        if (length_data.empty()) throw std::runtime_error("Failed to encode allPairsLength data.");
+
+        auto length_result = neozork::connection_manager::send_eth_call(endpoint_url, factory_address, length_data);
+
+        // Check result before decoding
+        if (length_result.error_message || !length_result.body || length_result.body.value().empty() || length_result.body.value() == "0x") {
+             throw std::runtime_error("Failed to get pool count: " + length_result.error_message.value_or("Empty or invalid response body"));
+        }
+
+        // Decode count
+        pool_count = neozork::connection_manager::decode_uint256_from_result(length_result.body.value());
+        if (pool_count < 0) { // decode_uint256 might throw, but double check
+            throw std::runtime_error("Received invalid negative pool count.");
+        }
+        std::cout << LOG_PREFIX_ADAPTER << "Factory reports " << pool_count << " pools." << std::endl;
+
+    } catch (const std::exception& e) {
+        std::cerr << LOG_PREFIX_ADAPTER << "ERROR querying pool count: " << e.what() << std::endl;
+        return false; // Cannot proceed
+    }
+
+    if (pool_count == 0) {
+         std::cout << LOG_PREFIX_ADAPTER << "No pools found according to factory. Finished." << std::endl;
+         return false; // No changes made
+    }
+
+
+    // --- 6. Initialize Progress Bar ---
+    neozork::ui::start_progress("Discovering Pools", pool_count);
+    int added_pool_count = 0;
+
+
+    // --- 7. Loop Through Pools ---
+    for (long long i = 0; i < pool_count; ++i) {
+        std::string pool_address;
+        std::string token0_address;
+        std::string token1_address;
+
+        try {
+            // --- 7a. Get Pool Address ---
+            std::string pair_index_data = neozork::connection_manager::encode_eth_call_data(ALL_PAIRS_SIG, static_cast<unsigned long long>(i));
+            if (pair_index_data.empty()) throw std::runtime_error("Failed to encode allPairs data for index " + std::to_string(i));
+
+            auto pair_result = neozork::connection_manager::send_eth_call(endpoint_url, factory_address, pair_index_data);
+            if (pair_result.error_message || !pair_result.body) throw std::runtime_error("RPC error getting pair address for index " + std::to_string(i) + ": " + pair_result.error_message.value_or("No body"));
+
+            pool_address = neozork::connection_manager::decode_address_from_result(pair_result.body.value());
+            if (pool_address.empty() || pool_address == "0x0000000000000000000000000000000000000000") {
+                 // std::cerr << LOG_PREFIX_ADAPTER << "WARN: Received invalid/zero pool address for index " << i << ". Skipping." << std::endl;
+                 neozork::ui::update_progress(i + 1); // Still update progress
+                 continue; // Skip this index
+            }
+
+            // --- 7b. Check if Pool Already Exists Locally ---
+            // Pass bc_info by ref to find_pool
+             auto existing_pool_opt = neozork::config_manager::find_pool(bc_info, pool_address);
+             if (existing_pool_opt) {
+                 // std::cout << LOG_PREFIX_ADAPTER << "Pool " << pool_address << " already exists. Skipping." << std::endl; // Verbose
+                 neozork::ui::update_progress(i + 1);
+                 continue; // Skip if already in config
+             }
+
+             // --- Add small delay to avoid hitting RPC rate limits aggressively ---
+             // Adjust delay as needed (e.g., 50ms = 20 requests/sec approximately)
+             // std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+
+            // --- 7c. Get Token0 Address ---
+            std::string t0_data = neozork::connection_manager::encode_eth_call_data(TOKEN0_SIG);
+            if (t0_data.empty()) throw std::runtime_error("Failed to encode token0 data");
+
+            auto t0_result = neozork::connection_manager::send_eth_call(endpoint_url, pool_address, t0_data);
+            if (t0_result.error_message || !t0_result.body) throw std::runtime_error("RPC error getting token0 for pool " + pool_address + ": " + t0_result.error_message.value_or("No body"));
+
+            token0_address = neozork::connection_manager::decode_address_from_result(t0_result.body.value());
+            if (token0_address.empty() || token0_address == "0x0000000000000000000000000000000000000000") {
+                 std::cerr << LOG_PREFIX_ADAPTER << "WARN: Received invalid/zero token0 address for pool " << pool_address << ". Skipping." << std::endl;
+                 neozork::ui::update_progress(i + 1);
+                 continue;
+            }
+
+            // --- 7d. Get Token1 Address ---
+            std::string t1_data = neozork::connection_manager::encode_eth_call_data(TOKEN1_SIG);
+             if (t1_data.empty()) throw std::runtime_error("Failed to encode token1 data");
+
+            auto t1_result = neozork::connection_manager::send_eth_call(endpoint_url, pool_address, t1_data);
+            if (t1_result.error_message || !t1_result.body) throw std::runtime_error("RPC error getting token1 for pool " + pool_address + ": " + t1_result.error_message.value_or("No body"));
+
+            token1_address = neozork::connection_manager::decode_address_from_result(t1_result.body.value());
+             if (token1_address.empty() || token1_address == "0x0000000000000000000000000000000000000000") {
+                 std::cerr << LOG_PREFIX_ADAPTER << "WARN: Received invalid/zero token1 address for pool " << pool_address << ". Skipping." << std::endl;
+                 neozork::ui::update_progress(i + 1);
+                 continue;
+             }
+
+            // --- 7e. Construct Pool Info & Add to Config ---
+            neozork::config_manager::struct_pool_info new_pool;
+            new_pool.dex_id = dex_id;
+            new_pool.pool_id = pool_address; // Use pool address as unique ID
+            new_pool.token0.address = token0_address;
+            new_pool.token1.address = token1_address;
+            // Symbols are not fetched here, leave empty
+            new_pool.token0.symbol = "";
+            new_pool.token1.symbol = "";
+
+            // Add pool using config manager (handles check within bc_info.pools)
+            if (neozork::config_manager::add_pool(bc_info, new_pool)) {
+                changes_made = true;
+                added_pool_count++;
+                 // Optional verbose log:
+                 // std::cout << "\n" << LOG_PREFIX_ADAPTER << "Added pool: " << pool_address << " (Tokens: " << token0_address << "/" << token1_address << ")" << std::endl;
+            } else {
+                 // This shouldn't happen if find_pool check above worked, but log just in case
+                 std::cerr << LOG_PREFIX_ADAPTER << "WARN: add_pool failed for pool " << pool_address << " which was not found initially." << std::endl;
+            }
+
+        } catch (const std::exception& e) {
+            // Log error for this specific pool index and continue
+            std::cerr << "\n" << LOG_PREFIX_ADAPTER << "ERROR processing pool index " << i << ": " << e.what() << ". Skipping." << std::endl;
+            // Optionally add a retry mechanism here or more robust error handling
+        }
+
+        // --- 7f. Update Progress Bar ---
+        neozork::ui::update_progress(i + 1);
+
+    } // --- End Loop Through Pools ---
+
+
+    // --- 8. Finish Progress Bar ---
+    neozork::ui::finish_progress();
+    std::cout << LOG_PREFIX_ADAPTER << "Finished pool discovery loop. Added " << added_pool_count << " new pools to config." << std::endl;
+
+
+    // --- 9. Return Status ---
+    return changes_made; // Return true if any pool was successfully added
 }
-// +++ END ADDED STUB IMPLEMENTATION +++
 
 } // namespace neozork::blockchain_adapters
