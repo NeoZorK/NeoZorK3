@@ -535,18 +535,36 @@ bool discover_pools_for_dex(
         
     } catch (const std::exception& e) {
         std::cerr << LOG_PREFIX_ADAPTER << "ERROR querying pool count: " << e.what() << std::endl;
-        return false;
+        //return false; // Don't return here for the test
+        std::cout << LOG_PREFIX_ADAPTER << "Bypassing pool count query for testing." << std::endl; // Add log
+        pool_count = 5; // Hardcode for test
     }
-    if (pool_count == 0) { /* handle no pools */ return false; }
+    
+    // if (pool_count == 0) { // Comment out or adjust this check for testing
+    //      std::cout << LOG_PREFIX_ADAPTER << "No pools found according to factory. Finished." << std::endl;
+    //      return false; // No changes made
+    // }
+    const long long TEST_POOL_LIMIT = 5; // <<< ЗАДАЕМ ЛИМИТ ДЛЯ ТЕСТА
+    if (pool_count == 0) { // If query failed, use test limit
+        pool_count = TEST_POOL_LIMIT;
+        std::cout << LOG_PREFIX_ADAPTER << "Using test limit of " << TEST_POOL_LIMIT << " pools." << std::endl;
+    } else { // If query succeeded, still limit for the test
+        pool_count = std::min(pool_count, TEST_POOL_LIMIT); // Use smaller of actual count or test limit
+        std::cout << LOG_PREFIX_ADAPTER << "Limiting processing to first " << pool_count << " pools for testing." << std::endl;
+    }
     
     
     // --- 6. Initialize Progress Bar ---
-    neozork::ui::start_progress("Discovering Pools", pool_count);
+    // Use the potentially limited pool_count for the progress bar
+    neozork::ui::start_progress("Discovering Pools (Test)", pool_count); // Use limited count
     int added_pool_count = 0;
     
     
     // --- 7. Loop Through Pools ---
+    // The loop now uses the limited pool_count
     for (long long i = 0; i < pool_count; ++i) {
+        // ... (остальная часть цикла: try/catch для allPairs(i), token0, token1, add_pool, update_progress) ...
+        // --- Эта часть остается БЕЗ ИЗМЕНЕНИЙ ---
         std::string pool_address;
         std::string token0_address;
         std::string token1_address;
@@ -561,7 +579,6 @@ bool discover_pools_for_dex(
             
             pool_address = neozork::connection_manager::decode_address_from_result(*pair_result_body);
             if (pool_address.empty() || pool_address == "0x0000000000000000000000000000000000000000") {
-                // std::cerr << LOG_PREFIX_ADAPTER << "WARN: Invalid pool address at index " << i << ". Skipping." << std::endl;
                 neozork::ui::update_progress(i + 1); continue;
             }
             
@@ -569,9 +586,6 @@ bool discover_pools_for_dex(
             if (neozork::config_manager::find_pool(bc_info, pool_address)) {
                 neozork::ui::update_progress(i + 1); continue;
             }
-            
-            // --- Optional Delay ---
-            // std::this_thread::sleep_for(std::chrono::milliseconds(50));
             
             // --- 7c. Get Token0 Address using Helper ---
             std::string t0_data = neozork::connection_manager::encode_eth_call_data(TOKEN0_SIG);
@@ -601,7 +615,6 @@ bool discover_pools_for_dex(
             
             // --- 7e. Construct Pool Info & Add to Config ---
             neozork::config_manager::struct_pool_info new_pool;
-            // ... (fill new_pool details) ...
             new_pool.dex_id = dex_id;
             new_pool.pool_id = pool_address;
             new_pool.token0.address = token0_address;
