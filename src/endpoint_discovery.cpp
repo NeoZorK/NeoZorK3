@@ -97,43 +97,70 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
         // Expect a top-level array of chain objects
         if (!j.is_array()) {
             std::cerr << LOG_PREFIX << "ERROR: Expected JSON array from source, got " << j.type_name() << std::endl;
-            return urls; // Return empty vector on format mismatch
+            return urls;
         }
         int found_rpcs_count = 0;
         bool target_chain_found = false;
+        
         // Iterate through chain objects in the array
         for (const auto& chain_obj : j) {
-            if (!chain_obj.is_object()) continue; // Skip non-objects
-            // Check if this object contains the target chain ID
-            if (chain_obj.contains("chainId")) {
-                // Get the ID, defaulting to -1 if not convertible
-                int current_id = chain_obj.value("chainId", -1);
-                // Compare with the target ID
-                if (current_id == target_chain_id) {
+            if (!chain_obj.is_object())
+                continue;
+            // Check if chainId exists, is a number, and matches the target_chain_id
+            if (chain_obj.contains("chainId") && chain_obj.at("chainId").is_number_integer())
+            {
+                int current_id = chain_obj.at("chainId").get<int>(); // Теперь безопасно получать значение
+                if (current_id == target_chain_id)
+                {
                     target_chain_found = true;
                     std::string name = chain_obj.value("name", "?"); // Get name for logging
                     // Log that the target chain was found
                     // std::cout << LOG_PREFIX << "Found target chain: '" << name << "'." << std::endl; // Less verbose log
                     // Check if it has an array of RPCs ("rpc" key)
-                    if (chain_obj.contains("rpc") && chain_obj.at("rpc").is_array()) {
-                        const auto& rpc_array = chain_obj.at("rpc");
+                    // --- Try accessing RPC URLs ---
+                    // Define potential key names
+                    const std::string rpc_key = "rpc";
+                    const std::string rpcs_key = "rpcs"; // Potential alternative key name
+                    
+                    // Reference to hold the found array (if any)
+                    const json* rpc_array_ptr = nullptr;
+                    
+                    // Try the primary key "rpc"
+                    if (chain_obj.contains(rpc_key) && chain_obj.at(rpc_key).is_array()) {
+                        rpc_array_ptr = &chain_obj.at(rpc_key);
+                    }
+                    // If not found, try the alternative key "rpcs"
+                    else if (chain_obj.contains(rpcs_key) && chain_obj.at(rpcs_key).is_array()) {
+                        rpc_array_ptr = &chain_obj.at(rpcs_key);
+                        // Optional: Log that we used the alternative key
+                        // std::cout << LOG_PREFIX << "Note: Used alternative key '" << rpcs_key << "' for RPCs for chain " << current_id << "." << std::endl;
+                    }
+                    
+                    // Check if we found a valid RPC array using either key
+                    if (rpc_array_ptr) {
+                        const auto& rpc_array = *rpc_array_ptr; // Dereference the pointer
+                        
                         // Iterate through RPC entries (can be strings or objects)
                         for (const auto& rpc_item : rpc_array) {
                             std::string url;
+                            
                             // Extract URL string regardless of whether item is string or object
                             if (rpc_item.is_string()) {
                                 url = rpc_item.get<std::string>();
                             } else if (rpc_item.is_object() && rpc_item.contains("url")) {
+                                // Use value() for safety in case "url" is missing inside the object
                                 url = rpc_item.value("url", "");
                             }
-                            // Add URL if valid and not a placeholder
-                            if (!url.empty() && !contains_placeholder(url)) {
+                            
+                            // Add URL if valid, not a placeholder, and has a supported scheme
+                            if (!url.empty() && !contains_placeholder(url) && get_connection_type_from_url(url).has_value()) {
                                 urls.push_back(url);
                                 found_rpcs_count++;
                             }
                         }
                     } else {
-                        std::cout << LOG_PREFIX << "WARNING: Target chain '" << name << "' has no 'rpc' array." << std::endl;
+                        // Log if the target chain is found but doesn't have a valid 'rpc' or 'rpcs' array
+                        std::cout << LOG_PREFIX << "WARNING: Target chain '" << name << "' (ID: " << current_id << ") found, but has no valid '" << rpc_key << "' or '" << rpcs_key << "' array field." << std::endl;
                     }
                     break; // Found the target chain, no need to search further
                 }
@@ -427,7 +454,7 @@ find_or_create_blockchain_entry(
             parsed_id = static_cast<int>(id_ll);
             input_is_id = true;
         }
-    } catch (...) { /* Input is not a number */ }
+    } catch (...) { }
     
     // Download master list once for potential lookup
     std::optional<std::string> chain_list_json = download_master_chain_list();
@@ -542,7 +569,7 @@ int process_single_source(
     }
     // Accept both keywords (defi and defillama)
     else if (lower_source == "defi" || lower_source == "defillama") {
-        url_to_download = "https://api.defillama.com/chains";
+        url_to_download = "https://api.llama.fi/chains";
         
         // Reuse chainlist parser assuming similar structure
         parser_to_use = ParserType::CHAINLIST;
@@ -724,10 +751,15 @@ bool discover_endpoints(
     // --- 2. Process Discovery Sources ---
     // Counter for total new endpoints added in this run
     int total_added_count = 0;
-    // Start the progress bar
-    neozork::ui::start_progress("Processing Sources", static_cast<long long>(sources.size()));
+    
     // Index for progress bar update
     int source_index = 0;
+    
+    // Add a newline before starting the progress bar for separation
+    std::cout << std::endl;
+    
+    // Start the progress bar
+    neozork::ui::start_progress("Processing Sources", static_cast<long long>(sources.size()));
     
     // Loop through each source provided by the user
     for (const std::string& source : sources) {
