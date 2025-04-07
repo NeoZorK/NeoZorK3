@@ -397,8 +397,6 @@ void handle_find_dexes(
     
     // 5. Execute discovery for each found blockchain (LOOP)
     bool any_changes_made = false; // Track if saving is needed
-    int total_added_count = 0;
-    int total_skipped_count = 0; // Optional: track skipped ones too
     
     
     std::cout << "Found " << target_blockchains.size() << " matching blockchain(s). Processing..." << std::endl;
@@ -484,8 +482,9 @@ void handle_discover_endpoints(
             std::cout << "\nProcessing blockchain: " << bc_ref_opt.value().get().name << " (ID: " << bc_ref_opt.value().get().network_id << ")" << std::endl;
             // Pass config by reference, ID string, and sources
             // Assuming discover_endpoints now returns bool indicating if saving is needed
-            if(neozork::endpoint_discovery::discover_endpoints(config, blockchain_name_or_id, sources)) {
-                needs_saving = true; // Assume discover_endpoints handles saving internally now based on prev logic
+            // Correct argument order: string, vector, config&
+            if(neozork::endpoint_discovery::discover_endpoints(blockchain_name_or_id, sources, config)) {
+                needs_saving = true; // Assuming discover_endpoints returns bool indicating changes were made
             }
         } else {
             std::cerr << "Error: Blockchain with ID '" << blockchain_name_or_id << "' not found in configuration." << std::endl;
@@ -500,9 +499,10 @@ void handle_discover_endpoints(
             for (auto& bc_ref_wrapper : target_blockchains) {
                 neozork::config_manager::struct_blockchain_info& current_bc_info = bc_ref_wrapper.get();
                 std::cout << "\n--- Processing: " << current_bc_info.name << " (ID: " << current_bc_info.network_id << ") ---" << std::endl;
-                // Use specific ID for the call within the loop
-                if(neozork::endpoint_discovery::discover_endpoints(config, std::to_string(current_bc_info.network_id), sources)) {
-                    needs_saving = true; // Assume discover_endpoints handles saving internally
+                
+                // Use specific ID for the call within the loop with correct argument order
+                if(neozork::endpoint_discovery::discover_endpoints(std::to_string(current_bc_info.network_id), sources, config)) {
+                    needs_saving = true;
                 }
             }
         }
