@@ -83,9 +83,16 @@ std::optional<std::string> extract_placeholder_name(const std::string& url) {
 
 // Parse content assuming Chainlist/ChainID JSON format (array of objects with chainId, name, rpc fields)
 std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, int target_chain_id) {
+    
+    // Log prefix for clarity in output
     std::vector<std::string> urls;
+    
+    // Add newline for separation from potential progress bar line
+    std::cout << std::endl;
+    
     // Log the start of parsing for the specific chain ID
     std::cout << LOG_PREFIX << "Parsing as Chainlist/ChainID JSON for target ID: " << target_chain_id << "..." << std::endl;
+    
     // Ensure target ID is valid for filtering
     if (target_chain_id <= 0) {
         std::cerr << LOG_PREFIX << "WARNING: Invalid target Chain ID " << target_chain_id << ". Cannot filter." << std::endl;
@@ -94,6 +101,7 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
     try {
         // Parse the input string content into a JSON object
         json j = json::parse(content);
+        
         // Expect a top-level array of chain objects
         if (!j.is_array()) {
             std::cerr << LOG_PREFIX << "ERROR: Expected JSON array from source, got " << j.type_name() << std::endl;
@@ -109,7 +117,7 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
             // Check if chainId exists, is a number, and matches the target_chain_id
             if (chain_obj.contains("chainId") && chain_obj.at("chainId").is_number_integer())
             {
-                int current_id = chain_obj.at("chainId").get<int>(); // Теперь безопасно получать значение
+                int current_id = chain_obj.at("chainId").get<int>();
                 if (current_id == target_chain_id)
                 {
                     target_chain_found = true;
@@ -179,6 +187,10 @@ std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, i
 
 // Parse content assuming each non-empty, non-comment line is a URL
 std::vector<std::string> parse_simple_url_list(const std::string& content) {
+    
+    // Add newline for separation
+    std::cout << std::endl;
+    
     std::cout << LOG_PREFIX << "Parsing content as simple URL list..." << std::endl;
     std::vector<std::string> urls;
     std::stringstream ss(content);
@@ -200,7 +212,12 @@ std::vector<std::string> parse_simple_url_list(const std::string& content) {
 
 // Parse content assuming ethereum-lists JSON format (object with "rpc" array of strings)
 std::vector<std::string> parse_ethereum_lists_json(const std::string& content) {
+    
+    // Add newline for separation
+    std::cout << std::endl;
+    
     std::cout << LOG_PREFIX << "Attempting to parse as ethereum-lists JSON..." << std::endl;
+    
     std::vector<std::string> urls;
     try {
         json j = json::parse(content);

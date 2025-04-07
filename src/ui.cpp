@@ -66,18 +66,23 @@ void print_endpoint_details(
                 
                 // Print Traffic Info (if available) on a new indented line
                 if (status.traffic_in_bytes.has_value() || status.traffic_out_bytes.has_value()) {
-                    std::cout << "        Traffic In/Out (bytes): ";
-                    print_value(status.traffic_in_bytes.value_or(0)); // Use overload for long long or optional
+                    // Add newline before printing traffic info
+                    std::cout << "\n        Traffic In/Out (bytes): ";
+                    
+                    print_value(status.traffic_in_bytes.value_or(0));
                     std::cout << " / ";
-                    print_value(status.traffic_out_bytes.value_or(0)); // Use overload for long long or optional
-                    std::cout << std::endl;
+                    print_value(status.traffic_out_bytes.value_or(0));
+                    std::cout << std::endl; // Keep existing newline at the end
                 }
+                
                 
                 // Print RPC Response Size (if available) on a new indented line
                 if (status.rpc_response_size_bytes.has_value()) {
-                    std::cout << "        RPC Resp Size (bytes): ";
-                    print_value(status.rpc_response_size_bytes.value()); // Use overload for long long or optional
-                    std::cout << std::endl;
+                    // Add newline before printing RPC size info
+                    std::cout << "\n        RPC Resp Size (bytes): ";
+                    
+                    print_value(status.rpc_response_size_bytes.value());
+                    std::cout << std::endl; // Keep existing newline at the end
                 }
                 
             } else {

@@ -188,10 +188,15 @@ void run_scan_endpoints(
     int endpoint_index = 0;
     for (auto& endpoint : bc_info.endpoints) { // Need non-const reference to modify
         endpoint_index++;
+        
+        // Add a newline before processing the next endpoint for better separation
+        std::cout << std::endl;
+        
         std::cout << "  [Scanner] Processing Endpoint " << endpoint_index << "/" << bc_info.endpoints.size() << "..." << std::endl;
         
         // Determine which types to scan for *this* specific endpoint
         std::vector<std::pair<std::string, std::string>> types_to_scan_for_this_endpoint;
+        
         if (requested_connection_type) {
             // User requested a specific type, check if this endpoint has it
             auto it = endpoint.connection_urls.find(*requested_connection_type);
