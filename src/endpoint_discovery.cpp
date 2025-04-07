@@ -5,7 +5,7 @@
 #include "config_manager.h"     // For finding blockchain and adding endpoints
 #include "ui.h"                 // For progress bar
 #include "version.h"            // For program version
-
+#include <optional>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -21,11 +21,19 @@
 // Use nlohmann::json with the shorter 'json' alias
 using json = nlohmann::json;
 
+// Define the namespace for endpoint discovery functionalities
+namespace neozork::endpoint_discovery {
+
 // Define a prefix for log messages originating from this module
 #define LOG_PREFIX "    [Discovery] "
 
-// Define the namespace for endpoint discovery functionalities
-namespace neozork::endpoint_discovery {
+// --- Helper: Intermediate structure for parsed chains from source ---
+struct SourceChainInfo {
+    std::string name = "Unknown"; // Default name
+    int chainId = 0;             // Chain ID
+    std::vector<std::string> rpcUrls; // List of RPC URLs found for this chain
+    // std::string gecko_id = ""; // Optional: Add other fields if needed later
+};
 
 // --- Utility functions ---
 
@@ -79,7 +87,60 @@ std::optional<std::string> extract_placeholder_name(const std::string& url) {
 }
 
 
+
 // --- Parsing functions ---
+
+// --- Refactored Parser for Chainlist/DefiLlama Format ---
+std::vector<SourceChainInfo> parse_chainlist_format_source(const std::string& content) {
+    std::vector<SourceChainInfo> all_chains;
+    std::cout << std::endl; // Separate from progress bar
+    std::cout << LOG_PREFIX << "Parsing source using Chainlist/DefiLlama format..." << std::endl;
+    try {
+        json j = json::parse(content);
+        if (!j.is_array()) {
+            std::cerr << LOG_PREFIX << "ERROR: Expected JSON array from source, got " << j.type_name() << std::endl;
+            return all_chains;
+        }
+        for (const auto& chain_obj : j) {
+            if (!chain_obj.is_object()) continue;
+            SourceChainInfo current_chain;
+            current_chain.name = chain_obj.value("name", "Unknown");
+            if (chain_obj.contains("chainId") && chain_obj.at("chainId").is_number_integer()) {
+                current_chain.chainId = chain_obj.at("chainId").get<int>();
+                if (current_chain.chainId <= 0) continue; // Skip invalid ID
+            } else { continue; } // Skip missing/invalid ID
+            
+            const json* rpc_array_ptr = nullptr;
+            if (chain_obj.contains("rpc") && chain_obj.at("rpc").is_array()) rpc_array_ptr = &chain_obj.at("rpc");
+            else if (chain_obj.contains("rpcs") && chain_obj.at("rpcs").is_array()) rpc_array_ptr = &chain_obj.at("rpcs");
+            
+            if (rpc_array_ptr) {
+                for (const auto& rpc_item : *rpc_array_ptr) {
+                    std::string url;
+                    if (rpc_item.is_string()) url = rpc_item.get<std::string>();
+                    else if (rpc_item.is_object() && rpc_item.contains("url") && rpc_item.at("url").is_string()) url = rpc_item.at("url").get<std::string>();
+                    if (!url.empty() && !contains_placeholder(url)) { // Basic checks
+                        // Only add URL if scheme is recognized/supported
+                        if (get_connection_type_from_url(url).has_value()) {
+                            current_chain.rpcUrls.push_back(url);
+                        }
+                    }
+                }
+            }
+            all_chains.push_back(current_chain);
+        }
+        std::cout << LOG_PREFIX << "Parsed " << all_chains.size() << " total chains from source." << std::endl;
+    } catch (const json::parse_error& e) {
+        std::cerr << LOG_PREFIX << "ERROR parsing source JSON: " << e.what() << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << LOG_PREFIX << "ERROR processing source JSON: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << LOG_PREFIX << "ERROR processing source JSON (unknown error)." << std::endl;
+    }
+    return all_chains;
+}
+
+
 
 // Parse content assuming Chainlist/ChainID JSON format (array of objects with chainId, name, rpc fields)
 std::vector<std::string> parse_chainlist_rpcs_json(const std::string& content, int target_chain_id) {
@@ -741,80 +802,221 @@ int process_single_source(
     return added_count;
 }
 
-
-// --- Main Discovery Function (Refactored Orchestrator) ---
-bool discover_endpoints(
-                        const std::string& blockchain_name_or_id,
-                        const std::vector<std::string>& sources,
-                        neozork::config_manager::struct_config& config)
+/**
+ * @brief Discovers chains from sources, filters by name, and syncs them with local config.
+ * Adds new chains or new endpoints to existing chains found in the source.
+ * @param config The main configuration object (mutable).
+ * @param name_filter Substring to filter chain names from the source (case-insensitive). Use "*" or empty for all.
+ * @param sources Vector of source keywords (e.g., "chain") or URLs.
+ * @return True if the configuration was potentially modified, false otherwise or on critical error.
+ */
+bool discover_and_sync_chains(
+    neozork::config_manager::struct_config& config,
+    const std::string& name_filter,
+    const std::vector<std::string>& sources)
 {
-    // Log start
-    std::cout << "[Discovery] Starting discovery for: '" << blockchain_name_or_id << "'..." << std::endl;
-    
-    // --- 1. Find or Create Blockchain Entry ---
-    // Call the helper function to get the pointer and status
-    auto [blockchain_info_ptr, is_new_blockchain] = find_or_create_blockchain_entry(config, blockchain_name_or_id);
-    
-    // Check for critical error during find/create
-    if (!blockchain_info_ptr) {
-        std::cerr << "[Discovery] CRITICAL ERROR: Failed to find or create blockchain entry." << std::endl;
-        return false; // Cannot proceed
+    bool changes_made_overall = false;
+
+    // Prepare lowercase filter
+    std::string lower_name_filter = name_filter;
+    if (name_filter != "*") { // Treat "*" as wildcard, don't lowercase it
+        std::transform(lower_name_filter.begin(), lower_name_filter.end(), lower_name_filter.begin(), ::tolower);
     }
-    // Use a reference for convenience
-    neozork::config_manager::struct_blockchain_info& blockchain_info = *blockchain_info_ptr;
-    // Get the definitive network ID for processing
-    int current_processing_id = blockchain_info.network_id;
-    
-    // --- 2. Process Discovery Sources ---
-    // Counter for total new endpoints added in this run
-    int total_added_count = 0;
-    
-    // Index for progress bar update
-    int source_index = 0;
-    
-    // Add a newline before starting the progress bar for separation
-    std::cout << std::endl;
-    
-    // Start the progress bar
-    neozork::ui::start_progress("Processing Sources", static_cast<long long>(sources.size()));
-    
-    // Loop through each source provided by the user
-    for (const std::string& source : sources) {
-        source_index++; // Increment index (1-based)
-        // Process this source and get the count of added endpoints
-        int added_from_this_source = process_single_source(source, blockchain_info, current_processing_id);
-        // Add to the total count
-        total_added_count += added_from_this_source;
-        // Update the progress bar display
-        neozork::ui::update_progress(source_index);
-    }
-    // Finish the progress bar display
-    neozork::ui::finish_progress();
-    
-    // Log the summary for this blockchain
-    std::cout << "[Discovery] Discovery finished for '" << blockchain_info.name << "'. Added " << total_added_count << " new endpoint entries." << std::endl;
-    
-    // --- 3. Save Config ---
-    if (total_added_count > 0) {
-        try {
-            std::cout << "[Discovery] Saving updated configuration (new endpoints added)..." << std::endl;
-            neozork::config_manager::save_config(config);
-            std::cout << "[Discovery] Configuration saved successfully." << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "[Discovery] ERROR saving config: " << e.what() << std::endl;
-            return false;
-        }
-    } else {
-        // No new endpoints added
-        if (is_new_blockchain) {
-            std::cout << "[Discovery] No endpoints found for the newly specified blockchain '" << blockchain_info.name << "'. Configuration not saved." << std::endl;
+
+    // Process each source specified by the user
+    for (const std::string& source_keyword_or_url : sources) {
+        std::cout << "\n" << LOG_PREFIX << "Processing source: '" << source_keyword_or_url << "'" << std::endl;
+
+        // --- 1. Determine Download URL and Parser ---
+        std::string url_to_download;
+        // Use std::function to point to the correct parser (only one refactored for now)
+        std::function<std::vector<SourceChainInfo>(const std::string&)> parser_func = nullptr;
+        std::string lower_source = source_keyword_or_url;
+        std::transform(lower_source.begin(), lower_source.end(), lower_source.begin(), ::tolower);
+
+        if (lower_source == "chain") {
+            url_to_download = "https://chainid.network/chains.json";
+            parser_func = parse_chainlist_format_source;
+        } else if (lower_source == "defi" || lower_source == "defillama") {
+            url_to_download = "https://api.llama.fi/chains"; // Use the working one
+            parser_func = parse_chainlist_format_source;
+        } else if (lower_source == "eth") {
+            // url_to_download = "..."; // Set URL if needed
+            // parser_func = parse_ethereum_lists_json; // Needs refactoring to SourceChainInfo
+             std::cerr << LOG_PREFIX << "WARN: Source type 'eth' not yet supported by new sync logic. Skipping." << std::endl;
+             continue; // Skip this source
+        } else if (lower_source.rfind("https://", 0) == 0 || lower_source.rfind("http://", 0) == 0) {
+            url_to_download = source_keyword_or_url;
+            // parser_func = parse_simple_url_list; // Cannot return SourceChainInfo easily
+            std::cerr << LOG_PREFIX << "WARN: Direct URL source type not yet fully supported by new sync logic (cannot determine chain info). Skipping." << std::endl;
+            continue; // Skip this source
         } else {
-            std::cout << "[Discovery] No *new* endpoints added for existing blockchain '" << blockchain_info.name << "'. Configuration file not modified." << std::endl;
+             std::cerr << LOG_PREFIX << "WARN: Unknown source type: '" << source_keyword_or_url << "'. Skipping." << std::endl;
+             continue; // Skip unknown source
         }
+
+
+        // --- 2. Fetch Data ---
+        std::string source_content = "";
+        if (!url_to_download.empty()) {
+             std::cout << LOG_PREFIX << "Downloading data from: " << url_to_download << std::endl;
+             // Extract host/path
+             size_t host_start = url_to_download.find("://");
+             if (host_start != std::string::npos) host_start += 3; else { /* Handle error */ std::cerr << " Invalid URL\n"; continue; }
+             size_t path_start = url_to_download.find('/', host_start);
+             std::string host = (path_start == std::string::npos) ? url_to_download.substr(host_start) : url_to_download.substr(host_start, path_start - host_start);
+             std::string path = (path_start == std::string::npos) ? "/" : url_to_download.substr(path_start);
+
+             if (!host.empty()) {
+                 // Use connection manager
+                 neozork::connection_manager::http_headers headers = {{"User-Agent", "NeoZorK3_Discovery_Bot/" + neozork::PROGRAM_VERSION}};
+                 auto result = neozork::connection_manager::https_get(host, path, headers);
+                 if (result.body && !result.error_message) {
+                      source_content = result.body.value();
+                      std::cout << LOG_PREFIX << "Download successful (" << source_content.length() << " bytes)." << std::endl;
+                 } else {
+                     std::cerr << LOG_PREFIX << "ERROR downloading source: " << (result.error_message ? *result.error_message : "Unknown download error") << std::endl;
+                 }
+             } else {
+                  std::cerr << LOG_PREFIX << "ERROR: Could not extract host from URL." << std::endl;
+             }
+        }
+        if (source_content.empty()) {
+            std::cout << LOG_PREFIX << "No content downloaded or error occurred. Skipping this source." << std::endl;
+            continue; // Skip to next source
+        }
+
+
+        // --- 3. Parse ALL chains from the source data ---
+        if (!parser_func) {
+             std::cerr << LOG_PREFIX << "Internal error: No parser function assigned for source '" << source_keyword_or_url << "'. Skipping." << std::endl;
+             continue;
+        }
+        std::vector<SourceChainInfo> all_parsed_chains = parser_func(source_content);
+        if (all_parsed_chains.empty()) {
+            std::cout << LOG_PREFIX << "Parser returned no chain information from the source." << std::endl;
+            continue;
+        }
+
+
+        // --- 4. Filter chains based on the name_filter ---
+        std::vector<SourceChainInfo> filtered_chains;
+        if (name_filter == "*" || name_filter.empty()) {
+            filtered_chains = all_parsed_chains; // Keep all if filter is wildcard/empty
+            std::cout << LOG_PREFIX << "Processing all " << all_parsed_chains.size() << " chains from source (filter is '" << name_filter << "')." << std::endl;
+        } else {
+            for (const auto& chain : all_parsed_chains) {
+                std::string lower_chain_name = chain.name;
+                std::transform(lower_chain_name.begin(), lower_chain_name.end(), lower_chain_name.begin(), ::tolower);
+                // Use case-insensitive substring check
+                if (lower_chain_name.find(lower_name_filter) != std::string::npos) {
+                    filtered_chains.push_back(chain);
+                }
+            }
+            std::cout << LOG_PREFIX << "Found " << filtered_chains.size() << " chains in source matching filter '" << name_filter << "'." << std::endl;
+        }
+        if (filtered_chains.empty()) {
+             std::cout << LOG_PREFIX << "No chains from this source matched the filter." << std::endl;
+             continue; // Skip to next source if filter yields nothing
+        }
+
+
+        // --- 5. Synchronize each filtered chain with local config ---
+        for (const auto& source_chain : filtered_chains) {
+             // Skip if chain ID is invalid (already checked in parser, but double-check)
+             if (source_chain.chainId <= 0) continue;
+
+             std::cout << LOG_PREFIX << "Syncing: " << source_chain.name << " (ID: " << source_chain.chainId << ")" << std::endl;
+             bool current_chain_modified = false;
+
+             // Find if chain exists locally by ID using config_manager function
+             auto local_bc_opt = neozork::config_manager::find_blockchain(config, std::to_string(source_chain.chainId));
+
+             if (!local_bc_opt) {
+                 // --- Add New Blockchain ---
+                 std::cout << LOG_PREFIX << " -> Chain not found locally. Adding new entry..." << std::endl;
+                 neozork::config_manager::struct_blockchain_info new_bc;
+                 new_bc.name = source_chain.name;
+                 new_bc.network_id = source_chain.chainId;
+                 // Add endpoints from source
+                 int added_endpoints_count = 0;
+                 for(const std::string& url : source_chain.rpcUrls) {
+                      auto type_opt = get_connection_type_from_url(url);
+                      if (!type_opt) {
+                           // std::cout << LOG_PREFIX << "    -> Skipping unsupported endpoint URL: " << url << std::endl;
+                           continue; // Skip unsupported schemes
+                      }
+                      neozork::config_manager::struct_endpoint ep;
+                      ep.connection_urls[*type_opt] = url;
+                      // Add endpoint to the list for the new blockchain
+                      new_bc.endpoints.push_back(ep);
+                      added_endpoints_count++;
+                 }
+
+                 // Add the new blockchain struct to the main config vector
+                 // Using the config_manager function which checks for duplicates (though shouldn't happen here)
+                 if(neozork::config_manager::add_blockchain(config, new_bc)) {
+                      std::cout << LOG_PREFIX << " -> Successfully added new blockchain '" << new_bc.name << "' with " << added_endpoints_count << " endpoint(s)." << std::endl;
+                      current_chain_modified = true;
+                 } else {
+                      // This case should ideally not be reached if find_blockchain worked correctly
+                      std::cerr << LOG_PREFIX << " -> ERROR: Failed to add new blockchain '" << new_bc.name << "' even though it wasn't found initially!" << std::endl;
+                 }
+             } else {
+                 // --- Update Existing Blockchain (Add missing endpoints) ---
+                 neozork::config_manager::struct_blockchain_info& local_bc = local_bc_opt.value().get();
+                 std::cout << LOG_PREFIX << " -> Found locally: '" << local_bc.name << "'. Checking for new endpoints..." << std::endl;
+                 // Optional: Update name if different? Be careful with this.
+                 // if (local_bc.name != source_chain.name) { ... update local_bc.name ... current_chain_modified = true; }
+
+                 int added_endpoints_count = 0;
+                 for(const std::string& url : source_chain.rpcUrls) {
+                      // Check if an endpoint with this URL already exists in the local config for this chain
+                      auto existing_ep_opt = neozork::config_manager::find_endpoint_by_any_url(local_bc, url);
+                      if (!existing_ep_opt) {
+                           // Endpoint doesn't exist locally, add it
+                           auto type_opt = get_connection_type_from_url(url);
+                           if (!type_opt) continue; // Skip unsupported schemes
+
+                           neozork::config_manager::struct_endpoint new_ep;
+                           new_ep.connection_urls[*type_opt] = url;
+
+                           // Add using config_manager function (handles internal vector push_back)
+                           if(neozork::config_manager::add_endpoint(local_bc, new_ep)) {
+                               // std::cout << LOG_PREFIX << "    -> Added new endpoint: " << url << std::endl; // Verbose log
+                               added_endpoints_count++;
+                               current_chain_modified = true;
+                           } else {
+                               // This might happen if add_endpoint implements extra checks, though unlikely now
+                               std::cerr << LOG_PREFIX << "    -> WARN: Failed to add new endpoint '" << url << "' via add_endpoint function." << std::endl;
+                           }
+                      }
+                      // else { std::cout << LOG_PREFIX << "    -> Endpoint exists: " << url << std::endl; } // Verbose log
+                 } // End loop over source RPC URLs
+
+                 if (added_endpoints_count > 0) {
+                      std::cout << LOG_PREFIX << " -> Added " << added_endpoints_count << " new endpoint(s) to existing chain '" << local_bc.name << "'." << std::endl;
+                 } else {
+                      std::cout << LOG_PREFIX << " -> No new endpoints found in source for existing chain '" << local_bc.name << "'." << std::endl;
+                 }
+             } // End if/else (local chain found)
+
+             // Track if any modification happened for this chain
+             if(current_chain_modified) {
+                 changes_made_overall = true;
+             }
+
+        } // --- End loop syncing filtered chains ---
+
+    } // --- End loop over sources ---
+
+    // Return true if any changes were made across any source/chain
+    if (changes_made_overall) {
+        std::cout << LOG_PREFIX << "Sync process completed. Changes detected in configuration." << std::endl;
+    } else {
+         std::cout << LOG_PREFIX << "Sync process completed. No changes detected in configuration." << std::endl;
     }
-    
-    // Return true to indicate the discovery process completed
-    return true;
+    return changes_made_overall; // Indicate if saving might be needed
 }
 
 

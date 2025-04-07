@@ -8,18 +8,18 @@
 namespace neozork::endpoint_discovery {
 
 /**
- * @brief Discovers RPC endpoints from specified sources and adds them to the config.
- * @param blockchain_name The name or ID of the blockchain to add endpoints for.
- * @param sources A list of sources (e.g., URLs to GitHub raw files, "defillama", "chainlist").
- * @param config A reference to the loaded configuration object to modify.
- * @return True if discovery was attempted (does not guarantee endpoints were found/added), false on critical error.
- * @throw std::runtime_error on configuration errors (e.g., blockchain not found).
+ * @brief Discovers chains from sources, filters by name, and syncs them with local config.
+ * Adds new chains or new endpoints to existing chains found in the source.
+ * @param config The main configuration object (mutable).
+ * @param name_filter Substring to filter chain names from the source (case-insensitive). Use "*" or empty for all.
+ * @param sources Vector of source keywords (e.g., "chain") or URLs.
+ * @return True if the configuration was potentially modified, false otherwise or on critical error.
  */
-bool discover_endpoints(
-                        const std::string& blockchain_name,
-                        const std::vector<std::string>& sources,
-                        neozork::config_manager::struct_config& config // Pass config by ref to modify
-);
+bool discover_and_sync_chains(
+                              neozork::config_manager::struct_config& config,
+                              const std::string& name_filter,
+                              const std::vector<std::string>& sources
+                              );
 
 } // namespace neozork::endpoint_discovery
 
