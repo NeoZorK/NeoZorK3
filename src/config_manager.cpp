@@ -166,16 +166,21 @@ void create_default_config(const std::filesystem::path& path) {
     fantom.name = "Fantom";
     fantom.network_id = 250;
     
-    struct_endpoint ftm_rpc1; // rpc.ftm.tools
+    struct_endpoint ftm_rpc1;
     ftm_rpc1.connection_urls["https"] = "https://rpc.ftm.tools/";
     
-    struct_endpoint ftm_rpc2; // Blast API
+    struct_endpoint ftm_rpc2;
     ftm_rpc2.connection_urls["https"] = "https://fantom-mainnet.public.blastapi.io/";
     ftm_rpc2.connection_urls["wss"] = "wss://fantom-mainnet.public.blastapi.io/";
-    ftm_rpc2.access_token.emplace("YOUR_BLASTAPI_TOKEN_HERE"); // Placeholder
+    ftm_rpc2.access_token.emplace("YOUR_BLASTAPI_TOKEN_HERE");
+    
+    struct_endpoint ftm_rpc3;
+    ftm_rpc3.connection_urls["https"] = "https://fantom-rpc.publicnode.com";
+    ftm_rpc3.connection_urls["wss"] = "wss://fantom-rpc.publicnode.com";
     
     fantom.endpoints.push_back(ftm_rpc1);
     fantom.endpoints.push_back(ftm_rpc2);
+    fantom.endpoints.push_back(ftm_rpc3);
     default_config.blockchains.push_back(fantom);
     
     // --- Example 2: Avalanche ---
@@ -194,7 +199,7 @@ void create_default_config(const std::filesystem::path& path) {
     eth.name = "Ethereum";
     eth.network_id = 1;
     
-    struct_endpoint eth_rpc1; // Cloudflare
+    struct_endpoint eth_rpc1;
     eth_rpc1.connection_urls["https"] = "https://cloudflare-eth.com/";
     
     eth.endpoints.push_back(eth_rpc1);
@@ -202,6 +207,27 @@ void create_default_config(const std::filesystem::path& path) {
     
     
     // --- Example 4: Binance Smart Chain ---
+    struct_blockchain_info bsc;
+    bsc.name = "Binance Smart Chain";
+    bsc.network_id = 56;
+    
+    struct_endpoint bsc_rpc1;
+    bsc_rpc1.connection_urls["https"] = "https://bsc-dataseed.binance.org/";
+    
+    bsc.endpoints.push_back(bsc_rpc1);
+    default_config.blockchains.push_back(bsc);
+    
+    // --- Example 5: Sonic ---
+    struct_blockchain_info sonic;
+    sonic.name = "Sonic Testnet";
+    sonic.network_id = 64165;
+    struct_endpoint sonic_rpc1;
+    
+    sonic_rpc1.connection_urls["https"] = "https://rpc.sonic.fantom.network/";
+    sonic.endpoints.push_back(sonic_rpc1);
+    default_config.blockchains.push_back(sonic);
+    
+    // Saving the default config
     try {
         json j = default_config;
         std::ofstream ofs(path);
@@ -335,22 +361,39 @@ std::optional<std::reference_wrapper<struct_blockchain_info>> find_blockchain(
     auto it = std::find_if(config_ref.blockchains.begin(), config_ref.blockchains.end(),
                            [&](const struct_blockchain_info& bc) {
         
+        // --- Check 1: Exact ID Match ---
+        // Try to convert search string to ID first
+        try {
+            long long search_id = std::stoll(name_or_id_str);
+            // If conversion successful, check for exact ID match
+            if (bc.network_id == search_id) {
+                return true; // Found by exact ID match
+            }
+            // If it was a number but didn't match ID, don't try name match
+            // return false; // Optional: uncomment if you ONLY want ID match when input is numeric
+        } catch(...) {
+            // Input was not a valid number, proceed to check name
+        }
+        
+        
+        // --- Check 2: Substring Name Match (Case-Insensitive) ---
+        // Convert both names to lower case for case-insensitive comparison
         std::string lower_name = bc.name;
         std::string lower_search = name_or_id_str;
-        
         std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         
-        if (lower_name == lower_search) return true;
+        // Check if bc.name (lowercase) CONTAINS name_or_id_str (lowercase)
+        if (lower_name.find(lower_search) != std::string::npos) {
+            return true; // Found by substring name match
+        }
         
-        // Check for ID
-        try {
-            long long id = std::stoll(name_or_id_str);
-            if (bc.network_id == id) return true;
-        } catch(...) { /* Ignore Exception stoi/stoll */ }
+        
+        // No match found by ID or Name substring
         return false;
+        
     });
     
     if (it != config_ref.blockchains.end()) {
@@ -365,18 +408,39 @@ std::optional<std::reference_wrapper<const struct_blockchain_info>> find_blockch
 {
     auto it = std::find_if(config_ref.blockchains.begin(), config_ref.blockchains.end(),
                            [&](const struct_blockchain_info& bc) {
+        // --- Check 1: Exact ID Match ---
+        // Try to convert search string to ID first
+        try {
+            long long search_id = std::stoll(name_or_id_str);
+            // If conversion successful, check for exact ID match
+            if (bc.network_id == search_id) {
+                return true; // Found by exact ID match
+            }
+            // If it was a number but didn't match ID, don't try name match
+            // return false; // Optional: uncomment if you ONLY want ID match when input is numeric
+        } catch(...) {
+            // Input was not a valid number, proceed to check name
+        }
+        
+        
+        // --- Check 2: Substring Name Match (Case-Insensitive) ---
+        // Convert both names to lower case for case-insensitive comparison
         std::string lower_name = bc.name;
         std::string lower_search = name_or_id_str;
         std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
                        [](unsigned char c){ return std::tolower(c); });
-        if (lower_name == lower_search) return true;
-        try {
-            long long id = std::stoll(name_or_id_str);
-            if (bc.network_id == id) return true;
-        } catch(...) {}
+        
+        // Check if bc.name (lowercase) CONTAINS name_or_id_str (lowercase)
+        if (lower_name.find(lower_search) != std::string::npos) {
+            return true; // Found by substring name match
+        }
+        
+        
+        // No match found by ID or Name substring
         return false;
+        
     });
     
     if (it != config_ref.blockchains.end()) {
@@ -462,11 +526,27 @@ std::optional<std::reference_wrapper<const struct_pool_info>> find_pool(
 
 // Add a new blockchain
 bool add_blockchain(struct_config& config_ref, const struct_blockchain_info& new_blockchain) {
-    // Проверяем по ID и имени
-    if (find_blockchain(config_ref, new_blockchain.name) || find_blockchain(config_ref, std::to_string(new_blockchain.network_id))) {
-        std::cerr << "Warning: Blockchain '" << new_blockchain.name << "' or ID " << new_blockchain.network_id << " already exists. Skipping." << std::endl;
+    
+    // Check if the blockchain already exists by ID or name
+    if (new_blockchain.network_id > 0) {
+        auto by_id = find_blockchain(config_ref, std::to_string(new_blockchain.network_id));
+        if (by_id) {
+            
+            // Find by ID, do not add
+            std::cerr << "Info: Blockchain with ID " << new_blockchain.network_id << " (Name: '" << by_id.value().get().name << "') already exists. Skipping add for '" << new_blockchain.name << "'." << std::endl;
+            return false;
+        }
+    }
+    // Check by name always
+    auto by_name = find_blockchain(config_ref, new_blockchain.name);
+    if (by_name) {
+        
+        // Find by name, do not add
+        std::cerr << "Info: Blockchain with Name '" << new_blockchain.name << "' (ID: " << by_name.value().get().network_id << ") already exists. Skipping add." << std::endl;
         return false;
     }
+    
+    // Add the new blockchain
     config_ref.blockchains.push_back(new_blockchain);
     return true;
 }
@@ -586,6 +666,69 @@ bool add_endpoint(struct_blockchain_info& bc_info_ref, const struct_endpoint& ne
     // No duplicates found based on URL/Type pairs, add the new endpoint structure
     bc_info_ref.endpoints.push_back(new_endpoint);
     return true; // Indicate success, new endpoint added
+}
+
+// --- Implementation for find_all_blockchains_by_name (Mutable) ---
+std::vector<std::reference_wrapper<struct_blockchain_info>> find_all_blockchains_by_name(
+                                                                                         struct_config& config_ref,
+                                                                                         const std::string& name_substring)
+{
+    std::vector<std::reference_wrapper<struct_blockchain_info>> found_blockchains;
+    if (name_substring.empty()) {
+        return found_blockchains; // Return empty if search term is empty
+    }
+    
+    // Prepare lowercase search term once
+    std::string lower_search = name_substring;
+    std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    
+    // Iterate through all blockchains
+    for (auto& bc : config_ref.blockchains) {
+        // Prepare lowercase name for comparison
+        std::string lower_name = bc.name;
+        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+        
+        // Check if the name contains the substring
+        if (lower_name.find(lower_search) != std::string::npos) {
+            // Add a reference to the matching blockchain to the result vector
+            found_blockchains.push_back(std::ref(bc));
+        }
+    }
+    return found_blockchains;
+}
+
+
+// --- Implementation for find_all_blockchains_by_name (Const) ---
+std::vector<std::reference_wrapper<const struct_blockchain_info>> find_all_blockchains_by_name(
+                                                                                               const struct_config& config_ref,
+                                                                                               const std::string& name_substring)
+{
+    std::vector<std::reference_wrapper<const struct_blockchain_info>> found_blockchains;
+    if (name_substring.empty()) {
+        return found_blockchains;
+    }
+    
+    // Prepare lowercase search term once
+    std::string lower_search = name_substring;
+    std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    
+    // Iterate through all blockchains
+    for (const auto& bc : config_ref.blockchains) {
+        // Prepare lowercase name for comparison
+        std::string lower_name = bc.name;
+        std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+        
+        // Check if the name contains the substring
+        if (lower_name.find(lower_search) != std::string::npos) {
+            // Add a const reference to the matching blockchain
+            found_blockchains.push_back(std::cref(bc));
+        }
+    }
+    return found_blockchains;
 }
 
 } // namespace neozork::config_manager

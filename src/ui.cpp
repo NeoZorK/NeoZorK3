@@ -64,6 +64,26 @@ void print_endpoint_details(
                 std::cout << ", Last Check: ";
                 print_value(status.last_check.value_or("N/A"));
                 
+                // Print Traffic Info (if available) on a new indented line
+                if (status.traffic_in_bytes.has_value() || status.traffic_out_bytes.has_value()) {
+                    // Add newline before printing traffic info
+                    std::cout << "\n        Traffic In/Out (bytes): ";
+                    
+                    print_value(status.traffic_in_bytes.value_or(0));
+                    std::cout << " / ";
+                    print_value(status.traffic_out_bytes.value_or(0));
+                    std::cout << std::endl; // Keep existing newline at the end
+                }
+                
+                
+                // Print RPC Response Size (if available) on a new indented line
+                if (status.rpc_response_size_bytes.has_value()) {
+                    // Add newline before printing RPC size info
+                    std::cout << "\n        RPC Resp Size (bytes): ";
+                    
+                    print_value(status.rpc_response_size_bytes.value());
+                    std::cout << std::endl; // Keep existing newline at the end
+                }
                 
             } else {
                 std::cout << "\n      Status: "; print_label("Not Scanned Yet");
@@ -100,7 +120,85 @@ void print_endpoint_details(
         
     }
     
+    // Print other endpoint details
+    if (!bc_info.dexes.empty()) {
+         print_label("  Known DEXes on this Blockchain:\n");
+         int dex_count = 0;
+         for (const auto& dex : bc_info.dexes) {
+             dex_count++;
+             // Indent DEX info slightly
+             std::cout << "    " << dex_count << ". ";
+             print_value(dex.name); // Print DEX Name
+             std::cout << " (ID: ";
+             print_value(dex.id);   // Print DEX ID
+             std::cout << ")" << std::endl;
+             // Optionally print Factory address too if needed:
+             // std::cout << "       Factory: "; print_value(dex.factory_address.value_or("N/A")); std::cout << std::endl;
+         }
+    } else {
+         print_label("  Known DEXes on this Blockchain: ");
+         print_value("(None configured yet)");
+         std::cout << std::endl;
+    }
+    
     std::cout << "----------------------------------------" << std::endl;
+}
+
+/**
+ * @brief Prints detailed information about a DEX.
+ * @param bc_info Blockchain info where the DEX resides.
+ * @param dex The DEX structure to print.
+ */
+void print_dex_details(
+                       const neozork::config_manager::struct_blockchain_info& bc_info,
+                       const neozork::config_manager::struct_dex_info& dex)
+{
+    // Header for DEX match
+    print_label("--- DEX Match Found ---\n");
+    
+    
+    // Blockchain context
+    print_label("  Blockchain: ");
+    print_blockchain_info(bc_info.name + " (ID: " + std::to_string(bc_info.network_id) + ")");
+    std::cout << std::endl;
+    
+    
+    // DEX Name
+    print_label("  DEX Name:   ");
+    print_value(dex.name);
+    std::cout << std::endl;
+    
+    
+    // DEX ID
+    print_label("  DEX ID:     ");
+    print_value(dex.id);
+    std::cout << std::endl;
+    
+    
+    // Factory Address
+    print_label("  Factory:    ");
+    // Use print_value overload for optional<string> if available, otherwise check manually
+    if (dex.factory_address.has_value()) {
+        print_value(dex.factory_address.value());
+    } else {
+        print_value("N/A");
+    }
+    std::cout << std::endl;
+    
+    
+    // Router Address
+    print_label("  Router:     ");
+    if (dex.router_address.has_value()) {
+        print_value(dex.router_address.value());
+    } else {
+        print_value("N/A");
+    }
+    std::cout << std::endl;
+    
+    
+    // Separator line
+    std::cout << "----------------------------------------" << std::endl;
+    
 }
 
 // --- Progress Bar Implementations ---

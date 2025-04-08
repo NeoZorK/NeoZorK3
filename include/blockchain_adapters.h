@@ -34,6 +34,34 @@ std::optional<long long> get_latest_block_number(
                                                  const std::string& endpoint_url
                                                  );
 
+/**
+ * @brief Discovers known DEXes for a specific blockchain and adds them to the config.
+ * Currently uses a hardcoded list of known DEX factory addresses per chain ID.
+ * @param config The main configuration object (mutable).
+ * @param blockchain_name_or_id The name or network ID of the blockchain.
+ * @return True if the process completed (even if no *new* DEXes were added), false on critical error (e.g., blockchain not found).
+ * @throws std::runtime_error on configuration errors.
+ */
+bool discover_dexes_for_blockchain(
+    neozork::config_manager::struct_config& config,
+    const std::string& blockchain_name_or_id
+);
+
+/**
+ * @brief Discovers liquidity pools for a specific DEX on a given blockchain.
+ * Interacts with the DEX Factory contract via RPC.
+ * @param config The main configuration object (mutable).
+ * @param blockchain_id_str The network ID of the blockchain as a string.
+ * @param dex_id The ID of the DEX (from config) for which to discover pools.
+ * @return True if the configuration was potentially modified (new pools added), false otherwise or on critical error.
+ * @throws std::runtime_error on configuration errors (blockchain/DEX not found) or RPC errors.
+ */
+bool discover_pools_for_dex(
+    neozork::config_manager::struct_config& config,
+    const std::string& blockchain_id_str,
+    const std::string& dex_id,
+    int delay_ms // <<< ADDED parameter (0 = no delay)
+);
 
 // --- Planned functions (Stubs for now) ---
 

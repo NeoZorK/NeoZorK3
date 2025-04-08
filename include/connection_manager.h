@@ -68,6 +68,56 @@ connection_result send_json_rpc_request(
                                         const nlohmann::json& params // Use const reference to json object
 );
 
+// +++ START ADDED ABI HELPERS DECLARATIONS +++
+
+/**
+ * @brief Encodes data for an eth_call for a function with no arguments.
+ * @param function_sig_hash The 4-byte function signature hash (e.g., "0x0dfe1681").
+ * @return The hex string for the 'data' field (e.g., "0x0dfe1681"), or empty string if hash is invalid.
+ */
+std::string encode_eth_call_data(const std::string& function_sig_hash);
+
+/**
+ * @brief Encodes data for an eth_call for a function with one uint256 argument.
+ * @param function_sig_hash The 4-byte function signature hash (e.g., "0x1e3dd18b").
+ * @param argument The uint256 argument (represented as long long, assumes non-negative).
+ * @return The hex string for the 'data' field (e.g., "0x1e3dd18b00...00<hex_arg>"), or empty string on error.
+ */
+std::string encode_eth_call_data(const std::string& function_sig_hash, unsigned long long argument); // Use unsigned long long
+
+/**
+ * @brief Decodes an address from a standard 32-byte eth_call hex result.
+ * @param result_hex The result field from JSON RPC response (e.g., "0x00...00<address_40_chars>").
+ * @return The decoded address ("0x" + 40 hex chars), or empty string if input is invalid.
+ */
+std::string decode_address_from_result(const std::string& result_hex);
+
+/**
+ * @brief Decodes a uint256 value from a standard 32-byte eth_call hex result.
+ * Uses long long, may overflow for very large uint256 values.
+ * @param result_hex The result field from JSON RPC response (e.g., "0x00...0<hex_number>").
+ * @return The decoded value as long long.
+ * @throws std::invalid_argument if hex string is invalid or conversion fails.
+ * @throws std::out_of_range if the value exceeds long long limits.
+ */
+long long decode_uint256_from_result(const std::string& result_hex);
+
+// +++ END ADDED ABI HELPERS DECLARATIONS +++ф
+
+/**
+ * @brief Sends a JSON RPC "eth_call" request to an endpoint.
+ * @param endpoint_url The full HTTPS URL of the JSON RPC endpoint.
+ * @param contract_address The address of the contract to call ('to' field).
+ * @param encoded_data The ABI-encoded data for the function call ('data' field).
+ * @return connection_result Structure containing details about the HTTP operation outcome.
+ * @throws std::invalid_argument if the URL is invalid or other input errors occur.
+ * @throws std::runtime_error on JSON errors or other execution issues.
+ */
+connection_result send_eth_call(
+                                const std::string& endpoint_url,
+                                const std::string& contract_address,
+                                const std::string& encoded_data
+                                );
 
 // TODO: Add ws_connect, ipc_connect etc. later
 

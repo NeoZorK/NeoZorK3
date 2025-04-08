@@ -3,6 +3,7 @@
 #include "cli_parser.h"
 #include "config_manager.h"
 #include "version.h"
+#include "ui.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -13,55 +14,64 @@ namespace neozork::cli_parser {
 
 // --- Updated print_help() function ---
 void print_help() {
-    std::cout << "NeoZorK3 DEX Arbitrage Bot " << neozork::PROGRAM_VERSION << "\n"
+    
+    using namespace neozork::ui::colors;
+    
+    std::cout << "\n"
     << "===================================\n\n"
-    << "Usage: neozork3_cli [command] [options]\n\n"
-    << "Commands:\n"
-    << "  -h, --help                 Show this help message and exit.\n"
-    << "  -i, --config-init          Initialize/reset the configuration file to default and exit.\n"
-    << "  -d, --discover-endpoints   Discover RPC endpoints from specified sources.\n"
-    << "                             Requires -b/--blockchain.\n"
-    << "                             Uses -s/--source (multiple allowed 'defi','eth','chain', defaults to 'chain').\n"
-    << "      --scan                 Scan configured endpoints for a blockchain to check status,\n"
-    << "                             latency, etc. Requires -b/--blockchain.\n"
-    << "                             Optionally use --connection-type to scan only one type.\n"
-    << "      --scan-1               Scan a *specific* configured endpoint URL for a blockchain.\n"
-    << "                             Requires -b/--blockchain and --endpoint <url>.\n"
-    << "                             Optionally use --connection-type to scan only one type.\n"
-    << "      --get-block            Measure average block time for a blockchain using an\n"
-    << "                             active endpoint. Requires -b/--blockchain.\n"
-    << "      --info                 <term>     \n"
-    << "                             Show detailed info for endpoints whose URL contains <term>.\n"
-    << "                             Searches across all configured blockchains.\n"
-    << "      --block                Display a table of measured average block speeds\n"
-    << "                             for all configured blockchains.\n"
-    << "      --active               \n"
-    << "                             Show active endpoints for a blockchain, sorted by latency.\n"
-    << "                             Requires -b/--blockchain. Optionally filter by -t/--connection-type.\n"
-    // --- Planned Commands ---
-    << "      --find-dexes             Discover DEXes on a blockchain.\n"
-    << "      --find-pools             Discover pools for a DEX on a blockchain.\n"
-    << "      --get-token-price        Get token price info.\n"
-    << "      --find-pools-for-token\n"
-    << "                             List pools containing a specific token.\n"
-    << "      --find-arbitrage-once\n"
-    << "                             Perform a single arbitrage check/trade attempt.\n"
-    << "      --run-tasks              Run continuous background arbitrage tasks.\n"
-    << "\nCommon Options:\n"
-    << "  -b, --blockchain <name|id>   Specify the target blockchain name or network ID.\n"
+    << bright_white << "Usage:" << reset <<"neozork3_cli" << cyan << "[command] [options]" << reset <<"\n\n"
+    << bright_white << " Commands:" << reset << "\n"
+    << blue << "  -h, --help " << reset << "                  Show this help message and exit.\n"
+    << blue << "  -i, --config-init " << reset << "           Initialize/reset the configuration file to default and exit.\n"
+    << blue << "  -d, --discover-endpoints "<< reset << "    Discover RPC endpoints from specified sources.\n"
+    << "                               Requires:" << yellow << " -b/--blockchain." << reset << "\n"
+    << "                               Uses:" << yellow << " -s/--source" << reset << "\n"
+    << "                               (multiple allowed:" << yellow << "'defi','eth','chain', defaults to 'chain'"<<reset<< ").\n"
+    << blue << "      --scan"<< reset << "                   Scan configured endpoints for a blockchain to check status,\n"
+    << "                               latency, etc. Requires:" << yellow << " -b/--blockchain" << reset << ".\n"
+    << "                               Optionally use" << yellow << " --connection-type " << reset << "to scan only one type.\n"
+    << blue << "      --scan-1"<< reset << "                 Scan a *specific* configured endpoint URL for a blockchain.\n"
+    << "                               Requires:" << yellow << " -b/--blockchain"<<reset<<"and"<<yellow<<"--endpoint <url>" << reset << ".\n"
+    << "                               Optionally use " << yellow << "--connection-type " << reset << "to scan only one type.\n"
+    << blue << "      --get-block" << reset << "              Measure average block time for a blockchain using an\n"
+    << "                               active endpoint. Requires:" << yellow << " -b/--blockchain" << reset << ".\n"
+    << blue << "      --info" << yellow << "                   <term>" << reset << " Show detailed info for endpoints whose URL contains" << yellow << " <term> " << reset <<".\n"
+    << "                               Searches across all configured blockchains.\n"
+    << blue << "      --block" << reset << "                  Display a table of measured average block speeds\n"
+    << "                               for all configured blockchains.\n"
+    << blue << "      --active" << reset << "                 Show active endpoints for a blockchain, sorted by latency.\n"
+    << "                               Requires:" << yellow << "-b/--blockchain." << reset << "Optionally filter by\n"
+    << "                               " << yellow << "-t/--connection-type" << reset << ".\n"
+    << blue << "      --find-dexes" << reset << "             Attempt to find known DEX contracts on a blockchain and\n"
+    << "                               add them to the config. Requires: " << yellow << "-b/--blockchain" << reset << ".\n"
+    << blue << "      --find-pools"<< reset << "             Attempt to discover liquidity pools for a specific DEX\n"
+    << "                               on a blockchain. Requires: " << yellow << "-b/--blockchain" << reset << " and " << yellow << "--dex <dex_id>" << reset << ".\n"
+    << bright_white << "\nCommon Options:" << reset << "\n"
+    << blue << "  -b, --blockchain <name|id>"<<reset<<"   Specify the target blockchain name or network ID.\n"
     << "                               Required by most commands involving a specific chain.\n"
-    << "  -s, --source <keyword|url>   Specify discovery source for --discover-endpoints.\n"
+    << blue << "  -s, --source <keyword|url>"<<reset<<"   Specify discovery source for"<<yellow<<"--discover-endpoints"<<reset<<".\n"
     << "                               Can be used multiple times.\n"
-    << "                               Keywords: 'defi', 'chain', 'eth'.\n"
+    << "                               Keywords: "<<yellow<<"'chain'"<<reset<<" (chainid.network), "<<yellow<<"'defi'"<<reset<<" (DefiLlama), "<<yellow<<"'eth'"<<reset<<" (ethereum-lists).\n"
     << "                               Or provide a direct http(s) URL to a JSON or text list.\n"
     << "                               Defaults to 'chain' if omitted.\n"
-    << "      --endpoint <url>         Specify a single endpoint URL (required by\n"
+    << blue << "      --endpoint <url>"<<reset<<"         Specify a single endpoint URL (required by\n"
     << "                               --scan-single-endpoint).\n"
-    << "  -t, --connection-type <type>\n" // Added -t as short flag
-    << "                               Optionally specify connection type (https, wss, etc.)\n"
+    << blue << "  -t, --connection-type <type>"<<reset<<"\n"
+    << "                               Optionally specify connection type "<<yellow<<"(https, wss, etc.)"<<reset<<"\n"
     << "                               for scanning commands. If omitted, all types for the\n"
     << "                               endpoint(s) listed in config are scanned.\n"
+    << blue << "      --dbr <ms>"<< reset << "               Set delay in milliseconds between pool discovery requests\n"
+    << "                               (Valid: 1-3000). Used only with " << yellow << "--find-pools" << reset << ".\n"
+    // --- Planned Commands ---
+    << bright_black << " Planned Commands: " << reset << "\n"
+    << "      --get-token-price        Get token price info.\n"
+    << "      --find-pools-for-token\n"
+    << "                               List pools containing a specific token.\n"
+    << "      --find-arbitrage-once\n"
+    << "                               Perform a single arbitrage check/trade attempt.\n"
+    << "      --run-tasks              Run continuous background arbitrage tasks" << reset << ".\n"
     // --- Planned Options ---
+    << bright_black << " Planned Options: " << reset << "\n"
     << "      --password <pass>        Password for encrypted operations (if any).\n"
     << "      --dex <dex_id>           Specify DEX ID (for --find-pools, --get-token-price).\n"
     //<< "      --connection-type <https|wss|ipc>\n" // Covered by -t above
@@ -70,7 +80,7 @@ void print_help() {
     << "                               Profit/risk strategy for arbitrage.\n"
     << "      --arbitrage-types <type1,type2,...|all>\n"
     << "                               Specify arbitrage types to search for.\n"
-    << "      --sync-to-block        Attempt to synchronize actions with new blocks.\n"
+    << "      --sync-to-block          Attempt to synchronize actions with new blocks" << reset << ".\n"
     << std::endl;
 }
 
@@ -128,8 +138,14 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             check_multiple_commands(command_type::SHOW_BLOCK_SPEEDS);
         }
         else if (arg == "--active") {
-                 check_multiple_commands(command_type::SHOW_ACTIVE_ENDPOINTS);
-             }
+            check_multiple_commands(command_type::SHOW_ACTIVE_ENDPOINTS);
+        }
+        else if (arg == "--find-dexes") {
+            check_multiple_commands(command_type::FIND_DEXES);
+        }
+        else if (arg == "--find-pools") {
+            check_multiple_commands(command_type::FIND_POOLS);
+        }
         
         // TODO: Add other command flags here (like --show-active-endpoints etc.)
         
@@ -168,6 +184,38 @@ command_parameters parse_arguments(int argc, char* argv[]) {
                 throw std::runtime_error("Missing value for argument: " + arg);
             }
         }
+        else if (arg == "--dex") {
+            // Relevant only for FIND_POOLS, but parse anyway
+            if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
+                params.dex_id = args[++i];
+            } else {
+                throw std::runtime_error("Missing value for argument: " + arg);
+            }
+        }
+        // Option: --dbr (Delay Between Requests)
+        else if (arg == "--dbr") {
+            
+            std::cout << "DEBUG PARSER: Processing --dbr argument..." << std::endl << std::flush;
+                       
+             if (i + 1 < args.size() && args[i+1].rfind("-", 0) != 0) {
+                  std::string delay_str = args[++i];
+                  try {
+                      int delay_val = std::stoi(delay_str);
+                      // Validate range
+                      if (delay_val >= 1 && delay_val <= 3000) {
+                          params.delay_between_requests_ms = delay_val;
+                      } else {
+                          throw std::runtime_error("Value for " + arg + " must be between 1 and 3000 ms.");
+                      }
+                  } catch (const std::invalid_argument& e) {
+                      throw std::runtime_error("Invalid integer value for " + arg + ": '" + delay_str + "'");
+                  } catch (const std::out_of_range& e) {
+                       throw std::runtime_error("Value out of range for integer for " + arg + ": '" + delay_str + "'");
+                  }
+             } else {
+                  throw std::runtime_error("Missing value for argument: " + arg);
+             }
+        }
         
         
         else if (params.type == command_type::SHOW_ENDPOINT_INFO) {
@@ -177,7 +225,6 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             if (params.endpoint_url.has_value()) {
                 std::cerr << "Warning: --endpoint argument ignored for --info." << std::endl;
             }
-            // other options
         }
         
         else if (params.type == command_type::SHOW_BLOCK_SPEEDS) {
@@ -185,6 +232,14 @@ command_parameters parse_arguments(int argc, char* argv[]) {
                 std::cerr << "Warning: Arguments like --blockchain, --search-term, etc. are ignored for --block." << std::endl;
             }
         }
+        
+        else if (params.type == command_type::FIND_DEXES) {
+            if (!params.blockchain_name.has_value()) {
+                throw std::runtime_error("--blockchain <name|id> is required for --find-dexes");
+            }
+        }
+        
+        
         
         // TODO: Add other flags with arguments here (password, dex_id, etc.)
         
@@ -198,6 +253,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
     }
     
     // --- Post-parsing Validation ---
+    
     
     // Validation for DISCOVER_ENDPOINTS
     if (params.type == command_type::DISCOVER_ENDPOINTS) {
@@ -242,7 +298,7 @@ command_parameters parse_arguments(int argc, char* argv[]) {
             std::cerr << "Warning: --source argument ignored for --scan-1 command." << std::endl;
         }
     }
-
+    
     // Validation for MEASURE_BLOCK_SPEED
     else if (params.type == command_type::MEASURE_BLOCK_SPEED) {
         if (!params.blockchain_name.has_value()) {
@@ -267,13 +323,38 @@ command_parameters parse_arguments(int argc, char* argv[]) {
         }
         // Check for irrelevant flags
         if (params.endpoint_url.has_value()) {
-             std::cerr << "Warning: --endpoint argument ignored for --active." << std::endl;
+            std::cerr << "Warning: --endpoint argument ignored for --active." << std::endl;
         }
-         if (!params.sources.empty()) {
-             std::cerr << "Warning: --source argument ignored for --active." << std::endl;
-         }
-         if (params.search_term.has_value()) {
-              std::cerr << "Warning: --search-term argument ignored for --active." << std::endl;
+        if (!params.sources.empty()) {
+            std::cerr << "Warning: --source argument ignored for --active." << std::endl;
+        }
+        if (params.search_term.has_value()) {
+            std::cerr << "Warning: --search-term argument ignored for --active." << std::endl;
+        }
+    }
+    
+    // Validation for SHOW_BLOCK_SPEEDS
+    else if (params.type == command_type::FIND_DEXES) {
+        if (!params.blockchain_name.has_value()) {
+            throw std::runtime_error("--blockchain <name|id> is required for --find-dexes");
+        }
+    }
+    
+    // Validation for FIND_POOLS (add check for --dbr usage)
+    else if (params.type == command_type::FIND_POOLS) {
+        if (!params.blockchain_name.has_value()) {
+            throw std::runtime_error("--blockchain <name|id> is required for --find-pools");
+        }
+        // Check for irrelevant flags (Example)
+         if (!params.sources.empty()) { std::cerr << "Warning: --source argument ignored for --find-pools command.\n"; }
+    }
+    // +++ START ADDED CODE +++
+    // General check: Warn if --dbr is used with wrong command
+    else if (params.delay_between_requests_ms.has_value()) {
+         // If dbr is set, but the command is not FIND_POOLS (or future commands needing it)
+         if (params.type != command_type::FIND_POOLS) {
+               std::cerr << "Warning: --dbr option is only used with --find-pools and will be ignored for command type "
+                         << static_cast<int>(params.type) << ".\n";
          }
     }
     

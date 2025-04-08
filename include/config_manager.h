@@ -237,6 +237,20 @@ std::vector<std::reference_wrapper<const struct_endpoint>> get_active_endpoints(
                                                                                 const std::string& preferred_type = "https" // "wss", "https"
 );
 
+// --- Find Multiple Blockchains ---
+
+// Returns references to ALL blockchains matching the name substring (case-insensitive)
+std::vector<std::reference_wrapper<struct_blockchain_info>> find_all_blockchains_by_name(
+    struct_config& config_ref,
+    const std::string& name_substring
+);
+
+// Const version
+std::vector<std::reference_wrapper<const struct_blockchain_info>> find_all_blockchains_by_name(
+    const struct_config& config_ref,
+    const std::string& name_substring
+);
+
 
 } // namespace neozork::config_manager
 

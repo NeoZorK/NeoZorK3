@@ -12,6 +12,7 @@
 namespace neozork::config_manager {
 struct struct_blockchain_info;
 struct struct_endpoint;
+struct struct_dex_info;
 } // namespace neozork::config_manager
 
 namespace neozork::ui {
@@ -120,6 +121,16 @@ void print_endpoint_details(
                             const neozork::config_manager::struct_blockchain_info& bc_info,
                             const neozork::config_manager::struct_endpoint& endpoint
                             );
+
+/**
+ * @brief Prints detailed information about a DEX.
+ * @param bc_info Blockchain info where the DEX resides.
+ * @param dex The DEX structure to print.
+ */
+void print_dex_details(
+    const neozork::config_manager::struct_blockchain_info& bc_info,
+    const neozork::config_manager::struct_dex_info& dex
+);
 
 // --- Progress Bar Functions ---
 
