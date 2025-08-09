@@ -1,0 +1,158 @@
+{
+  "network": "testnet",
+  "rpc_endpoint": "https://api.testnet.solana.com",
+  "wallet_private_key": "YOUR_TESTNET_PRIVATE_KEY_HERE",
+  "max_trade_size": 10.0,
+  "min_profit_percentage": 0.5,
+  "max_concurrent_orders": 3,
+  "order_timeout_ms": 30000,
+  "dry_run": false,
+  "risk_limits": {
+    "max_position_size": 100.0,
+    "max_daily_loss": 20.0,
+    "max_drawdown": 5.0,
+    "max_orders_per_minute": 5,
+    "max_consecutive_losses": 3,
+    "emergency_stop_loss": 10.0
+  },
+  "dexes": {
+    "raydium": {
+      "enabled": true,
+      "priority": 1,
+      "slippage_tolerance": 1.0,
+      "max_retries": 5,
+      "testnet_endpoints": {
+        "api": "https://testnet-api.raydium.io",
+        "ws": "wss://testnet-ws.raydium.io"
+      }
+    },
+    "orca": {
+      "enabled": true,
+      "priority": 2,
+      "slippage_tolerance": 1.0,
+      "max_retries": 5,
+      "testnet_endpoints": {
+        "api": "https://testnet-api.orca.so",
+        "ws": "wss://testnet-ws.orca.so"
+      }
+    },
+    "jupiter": {
+      "enabled": true,
+      "priority": 3,
+      "slippage_tolerance": 0.5,
+      "max_retries": 3,
+      "testnet_endpoints": {
+        "api": "https://testnet-api.jup.ag",
+        "ws": "wss://testnet-ws.jup.ag"
+      }
+    },
+    "serum": {
+      "enabled": true,
+      "priority": 4,
+      "slippage_tolerance": 1.0,
+      "max_retries": 5,
+      "testnet_endpoints": {
+        "api": "https://testnet-api.serum.markets",
+        "ws": "wss://testnet-ws.serum.markets"
+      }
+    }
+  },
+  "strategies": {
+    "triangular_arbitrage": {
+      "enabled": true,
+      "min_profit_percentage": 0.8,
+      "max_trade_size": 5.0,
+      "max_path_length": 3
+    },
+    "cross_dex_arbitrage": {
+      "enabled": true,
+      "min_profit_percentage": 0.5,
+      "max_trade_size": 10.0,
+      "min_volume": 100.0
+    },
+    "statistical_arbitrage": {
+      "enabled": true,
+      "min_profit_percentage": 1.0,
+      "max_trade_size": 15.0,
+      "lookback_period": 50,
+      "confidence_threshold": 0.7
+    }
+  },
+  "tokens": {
+    "whitelist": [
+      "SOL",
+      "USDC",
+      "USDT",
+      "ETH",
+      "BTC",
+      "RAY",
+      "SRM",
+      "ORCA",
+      "BONK"
+    ],
+    "blacklist": [
+      "MEME",
+      "TEST"
+    ],
+    "testnet_tokens": {
+      "SOL": "So11111111111111111111111111111111111111112",
+      "USDC": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "USDT": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      "ETH": "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",
+      "BTC": "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E"
+    }
+  },
+  "logging": {
+    "level": "DEBUG",
+    "file": "logs/testnet_trading.log",
+    "max_file_size_mb": 50,
+    "max_files": 5,
+    "console_output": true,
+    "log_trades": true,
+    "log_errors": true,
+    "log_network": true
+  },
+  "monitoring": {
+    "stats_interval_seconds": 30,
+    "health_check_interval_seconds": 15,
+    "alert_on_risk_violation": true,
+    "alert_on_error": true,
+    "telegram_notifications": {
+      "enabled": false,
+      "bot_token": "YOUR_BOT_TOKEN",
+      "chat_id": "YOUR_CHAT_ID"
+    },
+    "email_notifications": {
+      "enabled": false,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "email": "your_email@gmail.com",
+      "password": "your_app_password"
+    }
+  },
+  "performance": {
+    "max_memory_usage_mb": 256,
+    "cpu_affinity": "auto",
+    "thread_pool_size": 2,
+    "connection_timeout_ms": 10000,
+    "request_timeout_ms": 15000
+  },
+  "safety": {
+    "enable_circuit_breaker": true,
+    "circuit_breaker_threshold": 5,
+    "circuit_breaker_timeout_seconds": 600,
+    "enable_rate_limiting": true,
+    "max_requests_per_minute": 30,
+    "enable_slippage_protection": true,
+    "max_slippage_percentage": 2.0
+  },
+  "testnet_specific": {
+    "enable_faucet_requests": true,
+    "faucet_url": "https://faucet.solana.com",
+    "auto_refill_threshold": 0.05,
+    "refill_amount": 0.1,
+    "max_refill_requests_per_day": 5,
+    "enable_test_tokens": true,
+    "test_token_faucet": "https://solfaucet.com"
+  }
+}
