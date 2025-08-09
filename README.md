@@ -305,6 +305,27 @@ tools/
 
 For detailed information about all tools, see **[Tools Documentation](tools/README.md)**.
 
+## Documentation
+
+The project includes comprehensive documentation for all aspects:
+
+### 📚 Core Documentation
+* **[Quick Start Guide](docs/QUICK_START.md)** - Get up and running quickly
+* **[Build Instructions](docs/BUILD_INSTRUCTIONS.md)** - Detailed build and setup instructions
+* **[Implementation Status](docs/IMPLEMENTATION_STATUS.md)** - Current implementation vs project plan
+
+### 🚀 Trading Guides
+* **[Real Trading Setup](docs/REAL_TRADING_SETUP.md)** - Production trading configuration
+* **[Testnet Guide](docs/TESTNET_GUIDE.md)** - Testnet trading and testing
+* **[Testnet Faucet Guide](docs/TESTNET_FAUCET_GUIDE.md)** - Getting testnet SOL
+
+### 🛠️ Advanced Topics
+* **[Airdrop Solutions](docs/AIRDROP_SOLUTIONS_SUMMARY.md)** - Airdrop claiming strategies
+* **[Avoid 429 Errors](docs/AVOID_429_ERRORS.md)** - Rate limiting solutions
+
+### 📋 Project Planning
+* **[Project Plan](PROJECT_PLAN.md)** - Original project architecture and goals
+
 ## Contributing
 
 1. Fork the repository
