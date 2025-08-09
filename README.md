@@ -324,7 +324,7 @@ The project includes comprehensive documentation for all aspects:
 * **[Avoid 429 Errors](docs/AVOID_429_ERRORS.md)** - Rate limiting solutions
 
 ### 📋 Project Planning
-* **[Project Plan](PROJECT_PLAN.md)** - Original project architecture and goals
+* **[Project Plan](docs/PROJECT_PLAN.md)** - Original project architecture and goals
 
 ## Contributing
 
