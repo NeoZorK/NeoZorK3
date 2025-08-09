@@ -1,5 +1,28 @@
 # NeoZorK3 Project
 
+A high-performance decentralized exchange (DEX) arbitrage system written in C++17, designed for rapid detection and execution of profitable trading opportunities across multiple blockchains.
+
+## 🚀 Quick Start
+
+```bash
+# Build the project
+./build.sh
+
+# Test the application
+cd build && ./neozork3_cli --help
+
+# Initialize configuration
+./neozork3_cli --config-init
+
+# Discover endpoints for Fantom
+./neozork3_cli --discover-endpoints --blockchain Fantom --source chain
+
+# Scan endpoints
+./neozork3_cli --scan --blockchain Fantom
+```
+
+📖 **For detailed instructions, see [docs/BUILD_INSTRUCTIONS.md](docs/BUILD_INSTRUCTIONS.md)**
+
 ## 1. Project Goal
 
 The primary objective of NeoZorK3 is the **rapid detection and execution of profitable decentralized exchange (DEX) arbitrage opportunities** across various blockchains. The target environment includes high-performance servers (like AWS EC2 Alpine Linux x86/ARM) with low latency connections to blockchain endpoints.
@@ -13,7 +36,7 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
     * *(Future Scope)* Cross-Chain, CEX <-> DEX Arbitrage.
 * **Dynamic Endpoint Management:**
     * **Discovery (`--discover-endpoints`):** Finds RPC endpoint URLs from sources like DefiLlama data, Chainlist.org, known aggregators, specified GitHub lists, official project documentation (manual lookup often required), etc. (`--source`). Downloads/parses data (with progress bar) for a chosen blockchain (`--blockchain`) and adds basic endpoint info (URL, possible types) to `NeoZorK-config`. Does not test connectivity. Providers like Alchemy, Infura, QuickNode, Ankr might also be sources but often require manual API key addition.
-        * **Supported Keywords for `--source`:** `chain` (default, uses chainid.network), `defi` (uses DefiLlama), `eth` (uses ethereum-lists, Ethereum mainnet only). Can also provide direct HTTP/HTTPS URLs. * *... (rest of the features)* ...*
+        * **Supported Keywords for `--source`:** `chain` (default, uses chainid.network), `defi` (uses DefiLlama), `eth` (uses ethereum-lists, Ethereum mainnet only). Can also provide direct HTTP/HTTPS URLs.
     * **Scanning (`--scan-endpoints`, `--scan-single-endpoint`):** Tests endpoints *already present* in `NeoZorK-config`. Requires selecting a blockchain (`--blockchain`). Scans either *all* its configured endpoints or a *single* specified endpoint URL. It attempts to connect using *all* connection types (http, https, ws, wss, ipc) listed for that endpoint in the config. Updates the endpoint's status fields in the config *per connection type*: `isActive` (true/false), `latency` (ms), and optionally `trafficIn`/`trafficOut` (bytes, estimated), `rpcResponseSizeBytes` (estimated).
     * **Block Speed Measurement (`--measure-block-speed`):** Connects to an active endpoint for a specified blockchain, measures the average time for new blocks, and stores it in `NeoZorK-config`.
     * **Connection Flexibility:** Supports multiple connection protocols: Local IPC, HTTP, HTTPS, WS, WSS. The default type for actions (like arbitrage) can be hinted with `--connection-type`.
@@ -45,7 +68,7 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
             "endpoints": [
               {
                 // --- Fields added by Discovery ---
-                "url": "[https://rpc.ftm.tools/](https://rpc.ftm.tools/)",
+                "url": "https://rpc.ftm.tools/",
                 "supportedTypes": ["https", "wss"], // Potential connection types
                 "rateLimits": { /* ... */ }, // Optional
                 "accessToken": null, // Optional
@@ -63,17 +86,14 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
                    "wss": {
                      "isActive": false,
                      "latencyMs": null,
-                     "lastCheck": "2025-04-01T12:00:01Z",
-                     // ... traffic/size if applicable
+                     "lastCheck": "2025-04-01T12:00:01Z"
                    },
                    "ipc": null // Example if not configured/tested
                 },
                 "lastBlockNumber": 70000000 // Optional, updated by scanning or block speed check
-              },
-              // ... more endpoints
+              }
             ]
-          },
-          // ... more blockchains
+          }
         ]
       }
       ```
@@ -82,9 +102,8 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
 * **Execution & Monitoring:** Block time awareness, optional sync (`--sync-to-block`), secure wallet management, statistics logging, robust error handling.
 * **User Interface & Experience:** CLI flags, comprehensive `--help`, colored progress bars, optional password, service/daemon mode.
 
-## 3. Architecture & Modules (Conceptual)
+## 3. Architecture & Modules
 
-*(Modules remain largely the same, responsibilities adjusted)*
 * `cli`: Handles all flag parsing.
 * `config_manager`: Manages `NeoZorK-config` structure and access.
 * `endpoint_discovery`: Handles `--discover-endpoints` (various sources).
@@ -105,57 +124,42 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
 
 ## 4. Technology Stack
 
-*(Same as before: C++17/Clang17, CMake, httplib, nlohmann_json, WebSocket lib, stdlib, cross-platform)*
+* **Language:** C++17
+* **Build System:** CMake 3.16+
+* **Dependencies:** 
+  * nlohmann/json (v3.11.3) - JSON parsing
+  * cpp-httplib (v0.15.3) - HTTP client/server
+  * OpenSSL - HTTPS support
+* **Platform:** Cross-platform (Linux, macOS, Windows)
 
 ## 5. Development Guidelines
 
-*(Same as before: Procedural, English comments, Modularity, Memory safety, etc.)*
+* **Code Style:** Procedural C++ with English comments
+* **Modularity:** Logical separation of concerns
+* **Memory Safety:** RAII, smart pointers where appropriate
+* **Error Handling:** Comprehensive exception handling
+* **Documentation:** English documentation in `docs/` folder
 
-## 6. Typical Workflow / Usage Pattern
+## 6. Typical Workflow
 
-*(Steps 1-3 remain similar: Initial launch/init, Discover, Scan)*
-4.  **Verify Active Endpoints:** Use `--show-active-endpoints --blockchain <name>` to see detailed status of usable endpoints (URL, types, latency, etc.).
-5.  **(Optional) Measure Block Speed:** Use `--measure-block-speed --blockchain <name>`.
-6.  **Discover DEXs/Pools:** Use `--find-dexes --blockchain <name>` and `--find-pools --blockchain <name> --dex <dex_id>` to populate market data. *Crucial for price checks and arbitrage.*
-7.  **(Optional) Check Prices/Pools:** Use `--get-token-price` or `--find-pools-for-token` flags to query the gathered data.
-8.  **Single Arbitrage Check:** Run `--find-arbitrage-once --blockchain <name> ...`
-9.  **Continuous Monitoring:** Run `--run-tasks ...`
+1. **Initial Setup:** Run `./build.sh` to build the project
+2. **Configuration:** Initialize with `--config-init`
+3. **Endpoint Discovery:** Use `--discover-endpoints --blockchain <name>`
+4. **Endpoint Scanning:** Use `--scan --blockchain <name>` to test connectivity
+5. **Verify Active Endpoints:** Use `--active --blockchain <name>`
+6. **Measure Block Speed:** Use `--measure-block-speed --blockchain <name>`
+7. **Discover DEXs/Pools:** Use `--find-dexes` and `--find-pools`
+8. **Arbitrage Operations:** Use `--find-arbitrage-once` or `--run-tasks`
 
-## 7. Getting Started / Usage (Preliminary Flags)
+## 7. Documentation
 
-* *(Config file `NeoZorK-config` is auto-created/used next to the binary)*
+* **[Quick Start Guide](docs/QUICK_START.md)** - Get up and running quickly
+* **[Build Instructions](docs/BUILD_INSTRUCTIONS.md)** - Detailed build and setup instructions
 
-**General Options:**
-* `--help`: Display detailed usage information.
-* `--password <pass>`: Provide password if required for launch.
-* `--blockchain <name>`: Specify target blockchain(s). (Required for most operations).
-* `--connection-type <ipc|http|https|ws|wss>`: Specify *preferred* default connection protocol for actions (arbitrage, price checks). Default: `https`.
+## 8. License
 
-**Configuration Management:**
-* `--config-init`: Deletes existing `NeoZorK-config` and creates a new default one.
-* `--config-archive`: Backup the current `NeoZorK-config`.
-* `--config-restore`: Restore `NeoZorK-config` from backup.
+This project is proprietary software. All rights reserved.
 
-**Endpoint & Chain Info Management:**
-* `--discover-endpoints --blockchain <name> --source <defi|chain|eth|github_list_url>[,...]`: Discover RPC URLs from sources and add basic info to `NeoZorK-config`. * *... (other flags)* ...*
-* `--scan-endpoints --blockchain <name>`: Tests *all configured connection types* for endpoints listed in config for the specified blockchain, updates status/latency fields per type.
-* `--scan-single-endpoint --blockchain <name> --endpoint <url>`: Scan a specific endpoint URL, testing all its configured types.
-* `--show-active-endpoints --blockchain <name>`: Lists detailed information for endpoints marked 'Active' (for any connection type) in the config for the specified blockchain.
-* `--measure-block-speed --blockchain <name> [--endpoint <url>]`: Measure block time via an endpoint and save to config.
-* `--find-dexes --blockchain <name> [--endpoint <url>]`: Attempt to discover DEX contracts and save to config. (Requires active endpoint).
-* `--find-pools --blockchain <name> --dex <dex_id> [--endpoint <url>]`: Attempt to discover liquidity pools for a DEX and save to config. (Requires active endpoint).
+## 9. Contributing
 
-**Data Querying (Requires Populated Config):**
-* `--get-token-price <token_name>`: Show price across all blockchains/DEXes for the token.
-* `--get-token-price --blockchain <name> <token_name>`: Show price for the token on a specific blockchain.
-* `--get-token-price --blockchain <name> --dex <dex_id> <token_name>`: Show price for the token on a specific DEX/blockchain.
-* `--find-pools-for-token <token_name>`: List all known pools containing the specified token across all blockchains.
-
-**Running Arbitrage Tasks:**
-* `--find-arbitrage-once`: Perform a single check/trade cycle based on other parameters.
-* `--run-tasks`: Start continuous background monitoring/trading tasks.
-* `--mode <show|trade>`: Operational mode for execution. Default: `show`.
-* `--strategy <max-profit|stable-profit|min-risk>`: Overarching profit/risk strategy. Default: `stable-profit`.
-* `--arbitrage-types <type1>[,<type2>,...|all]`: Specify arbitrage types to search for (e.g., `direct`, `triangular`). Default: `direct,triangular`.
-* `--sync-to-block`: (Optional flag) Attempt to synchronize checks with new block events.
-* ... (other flags for filtering, budget, wallet selection, etc. TBD)
+Please refer to the development guidelines in section 5 and ensure all code follows the established patterns and standards.

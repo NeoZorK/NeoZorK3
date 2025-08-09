@@ -63,6 +63,15 @@ Desktop.ini
 # --- Log Files ---
 *.log
 
+# --- Dependencies ---
+# Local dependencies (downloaded manually)
+external/
+
+# --- Configuration Files ---
+# Local configuration files (auto-generated)
+NeoZorK-config
+*.config.local
+
 # --- Other ---
 # Например, если у вас будут файлы конфигурации с секретами
 # credentials.json
