@@ -111,26 +111,14 @@ get_testnet_sol() {
     
     # Проверка минимального баланса
     if [[ $(echo "$BALANCE < 0.1" | bc -l 2>/dev/null || echo "1") -eq 1 ]]; then
-        print_warning "Низкий баланс testnet SOL. Запрашиваем пополнение..."
+        print_warning "Низкий баланс testnet SOL. Запускаем интерактивный faucet..."
         
-        # Запрос SOL через faucet
-        print_info "Запрос SOL через Solana Faucet..."
-        
-        # Попытка через официальный faucet
-        if curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"requestAirdrop\",\"params\":[\"$(solana address)\", 1000000000]}" \
-            https://api.testnet.solana.com > /dev/null 2>&1; then
-            print_success "Запрос на пополнение отправлен"
-            
-            # Ожидание подтверждения
-            print_info "Ожидание подтверждения транзакции..."
-            sleep 10
-            
-            # Проверка нового баланса
-            NEW_BALANCE=$(solana balance 2>/dev/null || echo "0")
-            print_success "Новый баланс: $NEW_BALANCE SOL"
+        # Проверка наличия Python faucet
+        if [ -f "testnet_faucet.py" ]; then
+            print_info "Запуск интерактивного faucet..."
+            python3 testnet_faucet.py
         else
-            print_warning "Автоматический запрос не удался. Пополните вручную:"
+            print_warning "Faucet не найден. Пополните вручную:"
             print_info "1. Перейдите на: https://faucet.solana.com"
             print_info "2. Введите адрес: $(solana address)"
             print_info "3. Запросите 1 SOL"
