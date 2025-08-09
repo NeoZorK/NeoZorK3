@@ -1,0 +1,116 @@
+{
+  "rpc_endpoint": "https://api.mainnet-beta.solana.com",
+  "wallet_private_key": "YOUR_PRIVATE_KEY_HERE",
+  "max_trade_size": 25.0,
+  "min_profit_percentage": 1.0,
+  "max_concurrent_orders": 2,
+  "order_timeout_ms": 20000,
+  "dry_run": false,
+  "risk_limits": {
+    "max_position_size": 250.0,
+    "max_daily_loss": 25.0,
+    "max_drawdown": 3.0,
+    "max_orders_per_minute": 3,
+    "max_consecutive_losses": 2,
+    "emergency_stop_loss": 5.0
+  },
+  "dexes": {
+    "raydium": {
+      "enabled": true,
+      "priority": 1,
+      "slippage_tolerance": 0.3,
+      "max_retries": 3
+    },
+    "orca": {
+      "enabled": true,
+      "priority": 2,
+      "slippage_tolerance": 0.3,
+      "max_retries": 3
+    },
+    "jupiter": {
+      "enabled": true,
+      "priority": 3,
+      "slippage_tolerance": 0.2,
+      "max_retries": 2
+    }
+  },
+  "strategies": {
+    "triangular_arbitrage": {
+      "enabled": false,
+      "min_profit_percentage": 1.5,
+      "max_trade_size": 15.0,
+      "max_path_length": 3
+    },
+    "cross_dex_arbitrage": {
+      "enabled": true,
+      "min_profit_percentage": 1.0,
+      "max_trade_size": 25.0,
+      "min_volume": 1000.0
+    },
+    "statistical_arbitrage": {
+      "enabled": false,
+      "min_profit_percentage": 2.0,
+      "max_trade_size": 50.0,
+      "lookback_period": 100,
+      "confidence_threshold": 0.8
+    }
+  },
+  "tokens": {
+    "whitelist": [
+      "SOL",
+      "USDC",
+      "USDT",
+      "ETH",
+      "BTC",
+      "RAY",
+      "SRM"
+    ],
+    "blacklist": [
+      "MEME",
+      "TEST"
+    ]
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/trading.log",
+    "max_file_size_mb": 100,
+    "max_files": 10,
+    "console_output": true,
+    "log_trades": true,
+    "log_errors": true
+  },
+  "monitoring": {
+    "stats_interval_seconds": 60,
+    "health_check_interval_seconds": 30,
+    "alert_on_risk_violation": true,
+    "alert_on_error": true,
+    "telegram_notifications": {
+      "enabled": false,
+      "bot_token": "YOUR_BOT_TOKEN",
+      "chat_id": "YOUR_CHAT_ID"
+    },
+    "email_notifications": {
+      "enabled": false,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "email": "your_email@gmail.com",
+      "password": "your_app_password"
+    }
+  },
+  "performance": {
+    "max_memory_usage_mb": 512,
+    "cpu_affinity": "auto",
+    "thread_pool_size": 4,
+    "connection_timeout_ms": 5000,
+    "request_timeout_ms": 10000
+  },
+  "safety": {
+    "enable_circuit_breaker": true,
+    "circuit_breaker_threshold": 3,
+    "circuit_breaker_timeout_seconds": 300,
+    "enable_rate_limiting": true,
+    "max_requests_per_minute": 60,
+    "enable_slippage_protection": true,
+    "max_slippage_percentage": 1.0
+  }
+}
