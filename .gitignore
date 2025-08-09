@@ -79,3 +79,15 @@ docs/html/
 # Memory check files
 valgrind-out.txt
 *.vglog
+
+# --- Tools Security ---
+# Wallet files and private keys
+tools/configs/*.json
+tools/configs/.env
+testnet-wallet.json
+testnet-wallet.pubkey
+*.key
+*.pem
+
+# --- Cache Files ---
+.cache/

@@ -271,6 +271,40 @@ make coverage
 - **Timeout handling** for failed operations
 - **Circuit breakers** for extreme conditions
 
+## Tools and Demos
+
+The project includes a comprehensive set of tools and demos for Solana arbitrage trading and airdrop solutions:
+
+### 🔧 Tools Runner
+```bash
+# List all available tools
+python3 tools/run_tool.py --list
+
+# Start interactive mode
+python3 tools/run_tool.py --interactive
+
+# Run specific tools
+python3 tools/run_tool.py --script start_testnet_trading.sh
+python3 tools/run_tool.py --demo demo_arbitrage.py
+```
+
+### 📜 Available Tools
+- **Trading Scripts**: Real and testnet trading launchers
+- **Arbitrage Demos**: Market simulation and opportunity detection
+- **Airdrop Solutions**: Automated claiming and management
+- **Testnet Tools**: Safe testing environment setup
+
+### 📁 Tools Structure
+```
+tools/
+├── run_tool.py           # Main tool runner
+├── scripts/              # Shell scripts for trading
+├── demos/                # Python demo scripts
+└── configs/              # Configuration files
+```
+
+For detailed information about all tools, see **[Tools Documentation](tools/README.md)**.
+
 ## Contributing
 
 1. Fork the repository
