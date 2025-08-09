@@ -1,173 +1,469 @@
-# NeoZorK3 - Build and Run Instructions
+# Build Instructions
 
-## Project Description
-
-NeoZorK3 is a decentralized exchange (DEX) arbitrage system written in C++17. The project supports multiple blockchains including Fantom, Solana, Ethereum, Avalanche and others.
+This document provides detailed instructions for building the Solana Arbitrage Bot on different platforms.
 
 ## Prerequisites
 
-### macOS
-```bash
-# Install Homebrew (if not installed)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+### Required Software
 
-# Install dependencies
-brew install cmake openssl
-```
+- **C++20 compatible compiler**
+  - GCC 10+ (Linux/macOS)
+  - Clang 12+ (Linux/macOS)
+  - MSVC 2019+ (Windows)
+- **CMake 3.20+**
+- **Git**
+
+### Required Libraries
+
+- **Boost 1.75+** (system, thread, beast)
+- **OpenSSL**
+- **Google Test** (for testing)
+
+## Platform-Specific Setup
 
 ### Ubuntu/Debian
+
 ```bash
+# Update package list
 sudo apt update
-sudo apt install build-essential cmake libssl-dev git
+
+# Install build tools
+sudo apt install build-essential cmake git
+
+# Install Boost
+sudo apt install libboost-all-dev
+
+# Install OpenSSL
+sudo apt install libssl-dev
+
+# Install Google Test
+sudo apt install libgtest-dev
 ```
 
 ### CentOS/RHEL/Fedora
+
 ```bash
+# Install build tools
 sudo yum groupinstall "Development Tools"
-sudo yum install cmake openssl-devel git
-# or for Fedora:
-sudo dnf groupinstall "Development Tools"
-sudo dnf install cmake openssl-devel git
+sudo yum install cmake git
+
+# Install Boost
+sudo yum install boost-devel
+
+# Install OpenSSL
+sudo yum install openssl-devel
+
+# Install Google Test
+sudo yum install gtest-devel
 ```
 
-## Quick Build
+### macOS
 
-### Automatic Build (Recommended)
 ```bash
-# Run build script
-./build.sh
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install build tools
+brew install cmake git
+
+# Install Boost
+brew install boost
+
+# Install OpenSSL
+brew install openssl
+
+# Install Google Test
+brew install googletest
 ```
 
-### Manual Build
+### Windows
 
-1. **Clone Dependencies** (if not done yet):
+1. **Install Visual Studio 2019 or later** with C++ development tools
+2. **Install CMake** from https://cmake.org/download/
+3. **Install vcpkg** for package management:
+   ```cmd
+   git clone https://github.com/Microsoft/vcpkg.git
+   cd vcpkg
+   .\bootstrap-vcpkg.bat
+   .\vcpkg integrate install
+   ```
+4. **Install required packages**:
+   ```cmd
+   .\vcpkg install boost-system boost-thread boost-beast openssl gtest
+   ```
+
+## Building the Project
+
+### Step 1: Clone the Repository
+
 ```bash
-# Create dependencies folder
-mkdir -p external
-cd external
-
-# Download nlohmann/json
-curl -L https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz -o nlohmann_json.tar.gz
-tar -xzf nlohmann_json.tar.gz
-mv json-3.11.3 nlohmann_json
-
-# Download cpp-httplib
-curl -L https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.15.3.tar.gz -o cpp_httplib.tar.gz
-tar -xzf cpp_httplib.tar.gz
-mv cpp-httplib-0.15.3 cpp_httplib
-
-cd ..
+git clone https://github.com/your-username/solana-arbitrage-bot.git
+cd solana-arbitrage-bot
 ```
 
-2. **Build Project**:
+### Step 2: Create Build Directory
+
 ```bash
-# Create build folder
-mkdir -p build
+mkdir build
 cd build
-
-# Configure with CMake
-cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
-
-# Compile
-make -j$(nproc)  # Linux
-# or
-make -j$(sysctl -n hw.ncpu)  # macOS
 ```
 
-## Running
+### Step 3: Configure with CMake
 
-After successful build, the executable will be in `build/neozork3_cli`.
-
-### Test the Application
+#### Linux/macOS
 ```bash
-cd build
-./neozork3_cli --help
+cmake .. -DCMAKE_BUILD_TYPE=Release
 ```
 
-### Main Commands
+#### Windows
+```cmd
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+```
 
-1. **Initialize Configuration**:
+### Step 4: Build
+
+#### Linux/macOS
 ```bash
-./neozork3_cli --config-init
+make -j$(nproc)
 ```
 
-2. **Discover Endpoints for Blockchain**:
+#### Windows
+```cmd
+cmake --build . --config Release --parallel
+```
+
+### Step 5: Run Tests
+
 ```bash
-./neozork3_cli --discover-endpoints --blockchain Fantom
+# Run all tests
+make test
+
+# Or run tests directly
+ctest --verbose
 ```
 
-3. **Scan Endpoints**:
+## Build Options
+
+### CMake Configuration Options
+
 ```bash
-./neozork3_cli --scan --blockchain Fantom
+# Debug build
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+
+# Release build with optimizations
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# Enable sanitizers (Debug builds)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
+
+# Enable coverage reporting
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+
+# Disable tests
+cmake .. -DBUILD_TESTS=OFF
+
+# Custom install prefix
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
 ```
 
-4. **View Active Endpoints**:
+### Compiler-Specific Options
+
+#### GCC
 ```bash
-./neozork3_cli --active --blockchain Fantom
+cmake .. -DCMAKE_CXX_FLAGS="-O3 -march=native -mtune=native"
 ```
 
-5. **Find DEX Contracts**:
+#### Clang
 ```bash
-./neozork3_cli --find-dexes --blockchain Fantom
+cmake .. -DCMAKE_CXX_FLAGS="-O3 -march=native"
 ```
 
-## Configuration
+## Installation
 
-The project uses a configuration file `NeoZorK-config` which is automatically created on first run. The file contains:
+### System-Wide Installation
 
-- Blockchain settings
-- RPC endpoints
-- DEX contracts
-- Liquidity pools
-- Performance parameters
+```bash
+# Build and install
+make install
+
+# Or with custom prefix
+make install DESTDIR=/opt/solana-arbitrage-bot
+```
+
+### Local Installation
+
+```bash
+# Copy binary to local directory
+cp solana_arbitrage_bot ~/bin/
+```
 
 ## Troubleshooting
 
-### Error "No CMAKE_CXX_COMPILER could be found"
-Install C++ compiler:
-- macOS: `xcode-select --install`
-- Ubuntu: `sudo apt install build-essential`
+### Common Build Issues
 
-### Error "OpenSSL not found"
-Install OpenSSL:
-- macOS: `brew install openssl`
-- Ubuntu: `sudo apt install libssl-dev`
+#### 1. Boost Not Found
 
-### Errors when downloading dependencies
-Use local dependencies as described in "Manual Build" section.
+**Error**: `Could not find Boost`
 
-## Project Structure
-
-```
-NeoZorK3/
-├── CMakeLists.txt          # Build configuration
-├── build.sh               # Automatic build script
-├── include/               # Header files
-├── src/                   # Source code
-├── external/              # Local dependencies
-├── docs/                  # Documentation
-├── build/                 # Build folder (created automatically)
-└── NeoZorK-config         # Configuration file (created automatically)
-```
-
-## Development
-
-### Debug Build
+**Solution**:
 ```bash
-cd build
-cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
-make -j$(nproc)
+# Ubuntu/Debian
+sudo apt install libboost-all-dev
+
+# macOS
+brew install boost
+
+# Windows (vcpkg)
+.\vcpkg install boost-system boost-thread boost-beast
 ```
 
-### Rebuild
+#### 2. OpenSSL Not Found
+
+**Error**: `Could not find OpenSSL`
+
+**Solution**:
 ```bash
-cd build
-make clean
-make -j$(nproc)
+# Ubuntu/Debian
+sudo apt install libssl-dev
+
+# macOS
+brew install openssl
+
+# Windows (vcpkg)
+.\vcpkg install openssl
 ```
 
-### Full Rebuild
+#### 3. C++20 Not Supported
+
+**Error**: `C++20 standard not supported`
+
+**Solution**:
+- Update your compiler to a newer version
+- For GCC: Use version 10 or later
+- For Clang: Use version 12 or later
+- For MSVC: Use Visual Studio 2019 or later
+
+#### 4. CMake Version Too Old
+
+**Error**: `CMake 3.20 or higher is required`
+
+**Solution**:
 ```bash
-rm -rf build
-./build.sh
+# Ubuntu/Debian
+sudo apt install cmake
+
+# macOS
+brew install cmake
+
+# Windows
+# Download from https://cmake.org/download/
+```
+
+### Platform-Specific Issues
+
+#### Linux
+
+**Issue**: Permission denied when running tests
+```bash
+# Fix permissions
+chmod +x tests/*_test
+```
+
+**Issue**: Library not found at runtime
+```bash
+# Add library path to LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+```
+
+#### macOS
+
+**Issue**: OpenSSL not found
+```bash
+# Set OpenSSL path
+export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
+cmake .. -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl
+```
+
+**Issue**: Boost not found
+```bash
+# Set Boost path
+export BOOST_ROOT=/usr/local/opt/boost
+cmake .. -DBOOST_ROOT=/usr/local/opt/boost
+```
+
+#### Windows
+
+**Issue**: vcpkg not found
+```cmd
+# Set vcpkg toolchain file
+cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+```
+
+**Issue**: MSVC compiler not found
+```cmd
+# Use Developer Command Prompt
+# Or set environment variables
+set VS160COMNTOOLS=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\Common7\Tools\
+```
+
+## Development Setup
+
+### IDE Configuration
+
+#### Visual Studio Code
+
+1. Install C++ extension
+2. Configure `c_cpp_properties.json`:
+```json
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/include",
+                "/usr/include",
+                "/usr/local/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
+```
+
+#### CLion
+
+1. Open project directory
+2. Configure CMake settings
+3. Set C++ standard to C++20
+
+### Debugging
+
+#### Enable Debug Build
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+make
+```
+
+#### Run with GDB
+```bash
+gdb ./solana_arbitrage_bot
+```
+
+#### Run with Valgrind (Linux)
+```bash
+valgrind --leak-check=full ./solana_arbitrage_bot
+```
+
+## Performance Optimization
+
+### Compiler Optimizations
+
+```bash
+# Maximum optimization
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-O3 -march=native -DNDEBUG"
+
+# Link-time optimization
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-O3 -flto"
+```
+
+### Profile-Guided Optimization
+
+```bash
+# Generate profile data
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-fprofile-generate"
+make
+./solana_arbitrage_bot --dry-run
+
+# Use profile data
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-fprofile-use -fprofile-correction"
+make
+```
+
+## Continuous Integration
+
+### GitHub Actions Example
+
+```yaml
+name: Build and Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install build-essential cmake libboost-all-dev libssl-dev libgtest-dev
+    
+    - name: Build
+      run: |
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc)
+    
+    - name: Test
+      run: |
+        cd build
+        make test
+```
+
+## Package Creation
+
+### Debian Package
+
+```bash
+# Install packaging tools
+sudo apt install dh-make
+
+# Create package
+dh_make --createorig
+dpkg-buildpackage -us -uc
+```
+
+### RPM Package
+
+```bash
+# Install packaging tools
+sudo yum install rpm-build
+
+# Create package
+rpmbuild -ba solana-arbitrage-bot.spec
+```
+
+### Docker Image
+
+```dockerfile
+FROM ubuntu:20.04
+
+RUN apt update && apt install -y \
+    build-essential \
+    cmake \
+    libboost-all-dev \
+    libssl-dev \
+    libgtest-dev
+
+COPY . /app
+WORKDIR /app
+
+RUN mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+ENTRYPOINT ["./build/solana_arbitrage_bot"]
+```
+
+Build and run:
+```bash
+docker build -t solana-arbitrage-bot .
+docker run solana-arbitrage-bot --dry-run
 ```

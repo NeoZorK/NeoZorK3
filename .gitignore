@@ -1,78 +1,81 @@
-# --- CMake / Build System ---
-/[Bb]uild*/
+# Build directories
+build/
+out/
+cmake-build-*/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Data files
+data/
+*.db
+*.sqlite
+
+# Configuration files with sensitive data
+config.json
+wallet.json
+*.key
+*.pem
+
+# Dependencies
+external/
+vcpkg_installed/
+
+# Test artifacts
+test_results/
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# CMake files
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-CTestTestfile.cmake
 Makefile
-*.ninja
-compile_commands.json
+*.cmake
 
-# --- Output Binaries ---
-# Игнорировать все содержимое внутри подпапок bin/
-# Если вы хотите отслеживать сами папки (linux, macos...), но не их содержимое
-bin/*/
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+*.zip
 
-# Игнорировать исполняемый файл, если он случайно окажется не в bin/
-neozork3_cli
-*.exe
-*.out
+# Documentation build
+docs/_build/
+docs/html/
 
-# --- Compiled Object Files ---
-*.o
-*.obj
-*.lo
-*.la
+# Profiling data
+*.prof
+*.perf
 
-# --- Libraries / Archives ---
-*.a
-*.lib
-*.so
-*.dylib
-*.dll
-
-# --- IDE / Editor Specific ---
-# Xcode
-*.xcodeproj/
-*.xcworkspace/
-xcuserdata/
-*.xcuserstate
-# VSCode
-.vscode/
-# CLion
-.idea/
-# QtCreator
-*.pro.user*
-*.creator.user*
-# KDevelop
-*.kdev4/
-*.kdev*
-
-# --- OS Specific ---
-# macOS
-.DS_Store
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-# Linux
-*~
-# KDE
-.directory
-
-# --- Log Files ---
-*.log
-
-# --- Dependencies ---
-# Local dependencies (downloaded manually)
-external/
-
-# --- Configuration Files ---
-# Local configuration files (auto-generated)
-NeoZorK-config
-*.config.local
-
-# --- Other ---
-# Например, если у вас будут файлы конфигурации с секретами
-# credentials.json
-# config.local.yaml
+# Memory check files
+valgrind-out.txt
+*.vglog
