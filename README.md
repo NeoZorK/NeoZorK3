@@ -158,7 +158,7 @@ The primary objective of NeoZorK3 is the **rapid detection and execution of prof
 
 ## 8. License
 
-This project is proprietary software. All rights reserved.
+MIT License - See [LICENSE](LICENSE).
 
 ## 9. Contributing
 
