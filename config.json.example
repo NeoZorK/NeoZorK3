@@ -1,0 +1,58 @@
+{
+  "rpc_endpoint": "https://api.mainnet-beta.solana.com",
+  "wallet_private_key": "your_private_key_here",
+  "max_trade_size": 100.0,
+  "min_profit_percentage": 0.5,
+  "max_concurrent_orders": 5,
+  "order_timeout_ms": 30000,
+  "dry_run": true,
+  "risk_limits": {
+    "max_position_size": 1000.0,
+    "max_daily_loss": 100.0,
+    "max_drawdown": 10.0,
+    "max_orders_per_minute": 10
+  },
+  "dexes": {
+    "raydium": {
+      "enabled": true,
+      "priority": 1
+    },
+    "orca": {
+      "enabled": true,
+      "priority": 2
+    },
+    "serum": {
+      "enabled": true,
+      "priority": 3
+    }
+  },
+  "strategies": {
+    "triangular_arbitrage": {
+      "enabled": true,
+      "min_profit_percentage": 0.3,
+      "max_trade_size": 50.0
+    },
+    "cross_dex_arbitrage": {
+      "enabled": true,
+      "min_profit_percentage": 0.5,
+      "max_trade_size": 100.0
+    },
+    "statistical_arbitrage": {
+      "enabled": false,
+      "min_profit_percentage": 1.0,
+      "max_trade_size": 200.0,
+      "lookback_period": 100
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/bot.log",
+    "max_file_size_mb": 100,
+    "max_files": 5
+  },
+  "monitoring": {
+    "stats_interval_seconds": 300,
+    "health_check_interval_seconds": 60,
+    "alert_on_risk_violation": true
+  }
+}
