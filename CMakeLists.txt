@@ -10,13 +10,31 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # --- Dependencies ---
-# Use local dependencies instead of FetchContent
+include(FetchContent)
 
-# 1. nlohmann_json (local)
-set(nlohmann_json_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/nlohmann_json)
+if(EXISTS "${CMAKE_SOURCE_DIR}/external/nlohmann_json/include/nlohmann/json.hpp")
+    set(NEOZORK3_NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/nlohmann_json/include")
+else()
+    FetchContent_Declare(
+        nlohmann_json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+        URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(nlohmann_json)
+endif()
 
-# 2. httplib (local)
-set(cpp_httplib_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/cpp_httplib)
+if(EXISTS "${CMAKE_SOURCE_DIR}/external/cpp_httplib/httplib.h")
+    set(NEOZORK3_CPP_HTTPLIB_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/cpp_httplib")
+else()
+    FetchContent_Declare(
+        cpp_httplib
+        URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.15.3.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(cpp_httplib)
+    set(NEOZORK3_CPP_HTTPLIB_INCLUDE_DIR "${cpp_httplib_SOURCE_DIR}")
+endif()
 
 # 3. OpenSSL (support HTTPS in cpp-httplib)
 find_package(OpenSSL REQUIRED)
@@ -40,16 +58,19 @@ target_include_directories(neozork3_cli PUBLIC include)
 
 # ADD PATH to headers nlohmann_json для neozork3_cli
 target_include_directories(neozork3_cli PRIVATE
-${nlohmann_json_SOURCE_DIR}/include
-${cpp_httplib_SOURCE_DIR}
+${NEOZORK3_NLOHMANN_JSON_INCLUDE_DIR}
+${NEOZORK3_CPP_HTTPLIB_INCLUDE_DIR}
 )
 
 # Link OpenSSL
-# nlohmann_json and cpp_httplib - header-only, no need to link
 target_link_libraries(neozork3_cli PRIVATE
 OpenSSL::SSL
 OpenSSL::Crypto
 )
+
+if(TARGET nlohmann_json::nlohmann_json)
+target_link_libraries(neozork3_cli PRIVATE nlohmann_json::nlohmann_json)
+endif()
 
 # --- Compile/Link Options ---
 
