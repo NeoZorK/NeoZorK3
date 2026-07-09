@@ -45,7 +45,17 @@ void print_usage(const char* program_name) {
               << "Examples:\n"
               << "  " << program_name << " -c my_config.json\n"
               << "  " << program_name << " --dry-run --verbose\n"
-              << "  " << program_name << " -l logs/debug.log\n";
+	          << "  " << program_name << " -l logs/debug.log\n";
+}
+
+bool has_help_argument(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help") {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Parse command line arguments
@@ -290,11 +300,16 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
     
-    // Default configuration
-    Config config;
+	// Default configuration
+	Config config;
+	
+    if (has_help_argument(argc, argv)) {
+        print_usage(argv[0]);
+        return 0;
+    }
     
-    // Parse command line arguments
-    if (!parse_arguments(argc, argv, config)) {
+	// Parse command line arguments
+	if (!parse_arguments(argc, argv, config)) {
         return 1;
     }
     
