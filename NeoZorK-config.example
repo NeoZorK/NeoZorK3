@@ -1,0 +1,21 @@
+{
+  "blockchains": [
+    {
+      "name": "Fantom",
+      "networkId": 250,
+      "blockSpeedMs": null,
+      "dexes": [],
+      "pools": [],
+      "endpoints": [
+        {
+          "url": "https://rpc.ftm.tools/",
+          "supportedTypes": ["https"],
+          "rateLimits": {},
+          "accessToken": null,
+          "parallelQueryAllowance": 5,
+          "status": {}
+        }
+      ]
+    }
+  ]
+}
