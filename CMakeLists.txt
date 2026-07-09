@@ -1,108 +1,67 @@
-# Minimum required CMake version
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
+project(SolanaArbitrageBot VERSION 1.0.0 LANGUAGES CXX)
 
-# Project name
-project(NeoZorK3 VERSION 1.0 LANGUAGES CXX)
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set C++ standard (C++17)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# --- Dependencies ---
-include(FetchContent)
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/external/nlohmann_json/include/nlohmann/json.hpp")
-    set(NEOZORK3_NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/nlohmann_json/include")
-else()
-    FetchContent_Declare(
-        nlohmann_json
-        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-        URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    )
-    FetchContent_MakeAvailable(nlohmann_json)
+# Build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
-if(EXISTS "${CMAKE_SOURCE_DIR}/external/cpp_httplib/httplib.h")
-    set(NEOZORK3_CPP_HTTPLIB_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/cpp_httplib")
-else()
-    FetchContent_Declare(
-        cpp_httplib
-        URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.15.3.tar.gz
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    )
-    FetchContent_MakeAvailable(cpp_httplib)
-    set(NEOZORK3_CPP_HTTPLIB_INCLUDE_DIR "${cpp_httplib_SOURCE_DIR}")
-endif()
+# Compiler flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -DDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 
-# 3. OpenSSL (support HTTPS in cpp-httplib)
+# Find required packages
+find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
-# --- Executable ---
-# Build main.cpp into neozork3_cli
-add_executable(neozork3_cli
-src/main.cpp
-src/config_manager.cpp
-src/cli_parser.cpp
-src/connection_manager.cpp
-src/endpoint_discovery.cpp
-src/endpoint_scanner.cpp
-src/blockchain_adapters.cpp
-src/ui.cpp
-src/command_handlers.cpp
-)
-
-# Specify the include path for the executable
-target_include_directories(neozork3_cli PUBLIC include)
-
-# ADD PATH to headers nlohmann_json для neozork3_cli
-target_include_directories(neozork3_cli PRIVATE
-${NEOZORK3_NLOHMANN_JSON_INCLUDE_DIR}
-${NEOZORK3_CPP_HTTPLIB_INCLUDE_DIR}
-)
-
-# Link OpenSSL
-target_link_libraries(neozork3_cli PRIVATE
-OpenSSL::SSL
-OpenSSL::Crypto
-)
-
-if(TARGET nlohmann_json::nlohmann_json)
-target_link_libraries(neozork3_cli PRIVATE nlohmann_json::nlohmann_json)
+# Set Boost include directories
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-# --- Compile/Link Options ---
+# Include directories
+include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/external)
 
-# Shared folders  (warnings)
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-target_compile_options(neozork3_cli PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+# Add subdirectories
+add_subdirectory(src)
+add_subdirectory(tests)
 
-# Configuration options $<CONFIG:...>
+# Main executable
+add_executable(solana_arbitrage_bot
+    src/main.cpp
+    src/blockchain_adapters.cpp
+    src/market_data_provider.cpp
+    src/arbitrage_engine.cpp
+    src/order_manager.cpp
+    src/risk_manager.cpp
+    src/config_manager.cpp
+    src/logger.cpp
+)
 
-# Debug: add only debeg symbols
-target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:Debug>:-g>)
+# Link libraries
+target_link_libraries(solana_arbitrage_bot
+    PRIVATE
+    Boost::system
+    Boost::thread
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    Threads::Threads
+    blockchain_adapters
+    market_data_provider
+    arbitrage_engine
+    order_manager
+    risk_manager
+    config_manager
+    logger
+)
 
-# Release: high optimisatio (-O3), disable NDEBUG
-target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-O3 -DNDEBUG>)
-# can add delete symbols (strip) for Release, if need less size
-# target_link_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-s>)
-
-# RelWithDebInfo: optimisation (-O2 better for debugging, then O3) + symbols
-target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>)
-
-# MinSizeRel: size optimisation (-Os), disable NDEBUG, delete syymbols (strip)
-target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>)
-target_link_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-s>)
-
-# --- Options: Link Time Optimization (LTO) ---
-# Less size and better performance, but more link time.
-# can be added for Release and MinSizeRel.
-# target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-flto>)
-# target_link_options(neozork3_cli PRIVATE $<$<CONFIG:Release>:-flto>)
-# target_compile_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-flto>)
-# target_link_options(neozork3_cli PRIVATE $<$<CONFIG:MinSizeRel>:-flto>)
-
-# ReBuild by single terminal command (been in a build folder)
-# cd .. && rm -rf build && mkdir build && cd build && cmake .. -G Xcode -DCMAKE_BUILD_TYPE=Release && cmake --build . --config Release"
+# Install
+install(TARGETS solana_arbitrage_bot DESTINATION bin)
