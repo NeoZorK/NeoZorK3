@@ -1,3 +1,5 @@
+> **Archived (2026-09-30):** the bot is a non-functional prototype. The trading guides below describe intended behaviour only. See [en/IMPLEMENTATION_STATUS.md](en/IMPLEMENTATION_STATUS.md) for the real status.
+
 # NeoZorK3 Arbitrage Bot Documentation
 
 ## Overview
